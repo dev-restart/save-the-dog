@@ -2,12 +2,15 @@ import { clamp } from '../geometry.js';
 
 export interface BeeDifficultyProfile {
 	intelligence: number;
+	aiRefreshBudget: number;
 	routeCellSize: number;
 	routeCacheMs: number;
+	routeIterationLimit: number;
 	routeLookahead: number;
 	forceMultiplier: number;
 	maxSpeed: number;
 	attackCandidateLimit: number;
+	attackPathSearchLimit: number;
 	attackRings: number[];
 	probeMargin: number;
 	wallFollowWeight: number;
@@ -15,45 +18,58 @@ export interface BeeDifficultyProfile {
 	drawingDurability: number;
 	drawingDamagePerMs: number;
 	drawingDragPerMs: number;
+	drawingLiftPerMs: number;
 	drawingRotationPerMs: number;
 	usesDogAttackCandidates: boolean;
+	canPressureDrawing: boolean;
 	canDamageDrawing: boolean;
 	canDragDrawing: boolean;
 	canRotateDrawing: boolean;
 }
 
 export function createBeeDifficultyProfile(stageId: number): BeeDifficultyProfile {
-	const intelligence = clamp((stageId - 1) / 18, 0, 1);
-	const tier = Math.floor(Math.max(0, stageId - 1) / 5);
+	const stageIndex = Math.max(0, stageId - 1);
+	const intelligence = clamp(stageIndex / 24, 0, 1);
+	const tier = Math.floor(stageIndex / 4);
 
 	return {
 		intelligence,
-		routeCellSize: Math.max(10, 18 - intelligence * 6),
-		routeCacheMs: Math.max(260, 760 - tier * 90 - intelligence * 120),
+		aiRefreshBudget: stageId < 3 ? 25 : Math.min(6, 3 + Math.floor(tier / 2)),
+		routeCellSize: Math.max(14, 18 - intelligence * 4),
+		routeCacheMs: Math.max(420, 900 - tier * 45 - intelligence * 120),
+		routeIterationLimit: Math.floor(1100 + intelligence * 400 + tier * 32),
 		routeLookahead: 38 + intelligence * 30,
-		forceMultiplier: 1 + intelligence * 0.62 + tier * 0.04,
-		maxSpeed: 7.2 + intelligence * 2.2,
-		attackCandidateLimit: 6 + Math.min(6, tier * 2),
-		attackRings: [18, 34, 52, 70 + intelligence * 18],
-		probeMargin: 24 + intelligence * 30,
-		wallFollowWeight: 1.18 + intelligence * 0.55,
-		avoidanceWeight: 0.38 + intelligence * 0.22,
-		drawingDurability: Math.max(260, 1250 - stageId * 46),
-		drawingDamagePerMs: 0.08 + intelligence * 0.44 + Math.max(0, tier - 1) * 0.018,
-		drawingDragPerMs: 0.004 + intelligence * 0.024,
-		drawingRotationPerMs: intelligence * 0.00042,
+		forceMultiplier: 1 + intelligence * 0.55 + tier * 0.035,
+		maxSpeed: 7 + intelligence * 2,
+		attackCandidateLimit: 4 + Math.min(5, Math.floor(tier / 2)),
+		attackPathSearchLimit: Math.min(3, 1 + Math.floor(tier / 4)),
+		attackRings: [18, 34, 52, 68 + intelligence * 18],
+		probeMargin: 26 + intelligence * 28,
+		wallFollowWeight: 1.2 + intelligence * 0.55,
+		avoidanceWeight: 0.42 + intelligence * 0.2,
+		drawingDurability: Math.max(260, 1280 - stageId * 50),
+		drawingDamagePerMs: 0.08 + intelligence * 0.4 + Math.max(0, tier - 1) * 0.016,
+		drawingDragPerMs: 0.004 + intelligence * 0.022,
+		drawingLiftPerMs: 0.003 + intelligence * 0.018,
+		drawingRotationPerMs: 0.00008 + intelligence * 0.00038,
 		usesDogAttackCandidates: stageId >= 2,
+		canPressureDrawing: stageId >= 4,
 		canDamageDrawing: stageId >= 8,
-		canDragDrawing: stageId >= 14,
-		canRotateDrawing: stageId >= 20
+		canDragDrawing: stageId >= 6,
+		canRotateDrawing: stageId >= 12
 	};
 }
 
 export type BeeRole = 'chaser' | 'flanker-left' | 'flanker-right' | 'bruiser';
 
 export function getBeeRole(beeId: number, stageId: number): BeeRole {
-	// 초반에는 규칙 학습을 위해 대부분 직선 추격, 이후에는 벌마다 역할을 나눠 감싸기 방어를 흔든다.
+	// 1~2단계는 규칙 학습을 위해 안정적인 추격을 유지하고, 이후부터 공격 각도를 빠르게 분산한다.
+	if (stageId === 1) return 'chaser';
 	if (stageId < 3) return beeId % 3 === 0 ? 'flanker-left' : 'chaser';
-	if (stageId >= 8 && beeId % 5 === 0) return 'bruiser';
-	return beeId % 2 === 0 ? 'flanker-left' : 'flanker-right';
+
+	const pattern = Math.abs(beeId + stageId) % (stageId >= 4 ? 5 : 4);
+	if (stageId >= 4 && pattern === 0) return 'bruiser';
+	if (pattern === 1) return 'flanker-left';
+	if (pattern === 2) return 'flanker-right';
+	return 'chaser';
 }

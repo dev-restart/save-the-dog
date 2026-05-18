@@ -32,7 +32,6 @@ interface RouteNode {
 
 const ROUTE_PADDING = PHYSICS.beeRadius + 4;
 const DOG_ATTACK_RADIUS = PHYSICS.dogRadius + 46;
-const MAX_ROUTE_ITERATIONS = 2200;
 const NEIGHBOR_OFFSETS = [
 	{ col: 1, row: 0 },
 	{ col: -1, row: 0 },
@@ -106,7 +105,6 @@ export class BeeNavigation {
 
 	private chooseOpenAttackTarget(bee: BeeNavigationState, dogPosition: Point, navigationBodies: Matter.Body[]): Point {
 		const role = getBeeRole(bee.id, this.stageId);
-		if (role === 'chaser' && this.stageId < 3) return dogPosition;
 
 		if (role === 'bruiser') {
 			const drawingTarget = findClosestBodyPosition(
@@ -118,9 +116,12 @@ export class BeeNavigation {
 
 		// 측면 벌은 강아지 뒤/옆 좌표를 먼저 노려서 같은 점에 몰리는 느낌을 줄인다.
 		const towardDog = normalizeVector(dogPosition.x - bee.position.x, dogPosition.y - bee.position.y);
+		if (role === 'chaser' && this.stageId < 3) return dogPosition;
+
+		const routeJitter = ((bee.id % 7) - 3) * (3 + this.profile.intelligence * 3);
 		const side = role === 'flanker-left' ? -1 : 1;
-		const flankDistance = 38 + this.profile.intelligence * 36;
-		const backoff = 20 + this.profile.intelligence * 18;
+		const flankDistance = 38 + this.profile.intelligence * 36 + routeJitter;
+		const backoff = 20 + this.profile.intelligence * 18 + Math.abs(routeJitter) * 0.4;
 		const candidate = this.clampNavigationPoint({
 			x: dogPosition.x + -towardDog.y * side * flankDistance - towardDog.x * backoff,
 			y: dogPosition.y + towardDog.x * side * flankDistance - towardDog.y * backoff
@@ -159,6 +160,7 @@ export class BeeNavigation {
 
 		let bestPath: Point[] | null = null;
 		let bestScore = Number.POSITIVE_INFINITY;
+		let pathSearches = 0;
 
 		for (const candidate of candidates) {
 			if (!this.findLineBlocker(start, candidate.point, blockers, PHYSICS.beeRadius + 2)) {
@@ -169,6 +171,9 @@ export class BeeNavigation {
 				}
 				continue;
 			}
+
+			if (pathSearches >= this.profile.attackPathSearchLimit) continue;
+			pathSearches += 1;
 
 			const path = this.findPath(start, candidate.point, blockers);
 			if (!path) continue;
@@ -241,7 +246,7 @@ export class BeeNavigation {
 		const closed = new Set<string>();
 		let iterations = 0;
 
-		while (open.length > 0 && iterations < MAX_ROUTE_ITERATIONS) {
+		while (open.length > 0 && iterations < this.profile.routeIterationLimit) {
 			iterations += 1;
 			const current = takeLowestCostNode(open);
 			const currentKey = cellKey(current.col, current.row);

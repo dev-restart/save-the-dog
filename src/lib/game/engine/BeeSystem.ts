@@ -13,7 +13,7 @@ import { BeeSpawner } from './BeeSpawner.js';
 import { chooseBeeSteeringDirection } from './BeeSteering.js';
 
 const NAVIGATION_LABELS = new Set(['drawing', 'ground', 'platform', 'wall']);
-const BEE_AI_UPDATE_INTERVAL_MS = 50;
+const BEE_AI_UPDATE_INTERVAL_MS = 60;
 
 interface WorldBodyCache {
 	navigationBodies: Matter.Body[];
@@ -32,6 +32,7 @@ export class BeeSystem {
 	private bodyCache: WorldBodyCache = { navigationBodies: [], drawings: [] };
 	private running = false;
 	private routeClockMs = 0;
+	private aiCursor = 0;
 
 	constructor(
 		hives: HiveData[],
@@ -61,10 +62,11 @@ export class BeeSystem {
 		const shouldRefreshAi = this.aiScheduler.tick(deltaMs, hasBeeWithoutDirection);
 		if (shouldRefreshAi) {
 			this.refreshBodyCache();
+			this.refreshScheduledBeeDirections(dogBody);
 		}
 
 		for (const bee of this.bees) {
-			if (shouldRefreshAi || !this.beeDirectionById.has(bee.id)) {
+			if (!this.beeDirectionById.has(bee.id)) {
 				this.refreshBeeDirection(bee, dogBody);
 			}
 
@@ -90,6 +92,7 @@ export class BeeSystem {
 		this.bodyCache = { navigationBodies: [], drawings: [] };
 		this.beeForceById.clear();
 		this.combat.clear();
+		this.aiCursor = 0;
 	}
 
 	getBees(): Matter.Body[] {
@@ -128,6 +131,31 @@ export class BeeSystem {
 			this.navigation.findLineBlocker.bind(this.navigation)
 		);
 		this.beeDirectionById.set(bee.id, direction);
+	}
+
+	private refreshScheduledBeeDirections(dogBody: Matter.Body): void {
+		if (this.bees.length === 0) return;
+
+		const refreshedBeeIds = new Set<number>();
+		for (const bee of this.bees) {
+			if (this.beeDirectionById.has(bee.id)) continue;
+			this.refreshBeeDirection(bee, dogBody);
+			refreshedBeeIds.add(bee.id);
+		}
+
+		// 모든 벌이 같은 프레임에 A*를 다시 계산하면 모바일 브라우저에서 프레임이 튄다.
+		const budget = Math.max(0, this.profile.aiRefreshBudget - refreshedBeeIds.size);
+		let attempts = 0;
+		let refreshed = 0;
+		while (refreshed < budget && attempts < this.bees.length) {
+			const bee = this.bees[this.aiCursor % this.bees.length];
+			this.aiCursor = (this.aiCursor + 1) % this.bees.length;
+			attempts += 1;
+
+			if (refreshedBeeIds.has(bee.id)) continue;
+			this.refreshBeeDirection(bee, dogBody);
+			refreshed += 1;
+		}
 	}
 
 	private removeOutOfBounds(): void {

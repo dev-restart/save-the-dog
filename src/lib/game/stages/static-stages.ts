@@ -10,7 +10,7 @@ export const STATIC_STAGES: StageData[] = [
 		hives: [{ x: 195, y: 105, beeCount: 8, spawnIntervalMs: 320, beeForce: 0.0018 }],
 		obstacles: [ground],
 		inkLimit: 620,
-		survivalMs: 5000,
+		survivalMs: 3000,
 		difficultyLabel: 'Tutorial'
 	},
 	{

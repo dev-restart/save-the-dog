@@ -12,7 +12,7 @@ function createSeededRandom(seed: number): () => number {
 }
 
 function getDifficultyFactor(stageId: number): number {
-	return Math.min(3.5, 1 + (stageId - 20) * 0.08);
+	return Math.min(4.6, 1.15 + (stageId - 20) * 0.12);
 }
 
 function createObstacles(difficulty: number, rng: () => number): ObstacleData[] {
@@ -59,9 +59,9 @@ function createObstacles(difficulty: number, rng: () => number): ObstacleData[] 
 export function generateStage(stageId: number): StageData {
 	const rng = createSeededRandom(stageId * 2654435761);
 	const difficulty = getDifficultyFactor(stageId);
-	const hiveCount = difficulty > 2.4 && rng() > 0.5 ? 2 : 1;
-	const beeCount = Math.min(PHYSICS.maxActiveBees, Math.floor(12 + difficulty * 4));
-	const spawnIntervalMs = Math.max(130, Math.floor(240 - difficulty * 25));
+	const hiveCount = difficulty > 2.2 && rng() > 0.42 ? 2 : 1;
+	const beeCount = Math.min(PHYSICS.maxActiveBees, Math.floor(13 + difficulty * 4.2));
+	const spawnIntervalMs = Math.max(115, Math.floor(235 - difficulty * 27));
 
 	return {
 		id: stageId,
@@ -74,11 +74,11 @@ export function generateStage(stageId: number): StageData {
 			y: lerp(75, 150, rng()),
 			beeCount: Math.max(8, Math.floor(beeCount / hiveCount)),
 			spawnIntervalMs,
-			beeForce: Math.min(0.003, 0.0018 + difficulty * 0.00018)
+			beeForce: Math.min(0.0032, 0.00185 + difficulty * 0.0002)
 		})),
 		obstacles: createObstacles(difficulty, rng),
-		inkLimit: Math.max(320, Math.floor(600 - (stageId - 20) * 8)),
-		survivalMs: Math.min(8000, Math.floor(5200 + difficulty * 350)),
+		inkLimit: Math.max(280, Math.floor(560 - (stageId - 20) * 10)),
+		survivalMs: Math.min(9000, Math.floor(5200 + difficulty * 430)),
 		difficultyLabel: `Loop ${stageId - 20}`
 	};
 }
