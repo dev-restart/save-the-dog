@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 300" role="img" aria-labelledby="title desc">
+  <title id="title">Save The Dog</title>
+  <desc id="desc">Classic casual game logo for Save The Dog.</desc>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff7ad"/>
+      <stop offset="0.5" stop-color="#ffcf35"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#b8ecff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="7" flood-color="#172554" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <path d="M34 236 C76 266 156 276 250 260 C343 244 427 266 492 234 L492 284 L34 284 Z" fill="#6acb58" opacity="0.9"/>
+    <text x="28" y="94" font-family="Arial Black, Inter, sans-serif" font-size="68" font-weight="900" letter-spacing="1" fill="url(#gold)" stroke="#57320a" stroke-width="8" paint-order="stroke">SAVE THE</text>
+    <text x="30" y="172" font-family="Arial Black, Inter, sans-serif" font-size="88" font-weight="900" letter-spacing="1" fill="url(#gold)" stroke="#57320a" stroke-width="9" paint-order="stroke">DOG</text>
+    <text x="34" y="226" font-family="Arial Black, Inter, sans-serif" font-size="34" font-weight="900" textLength="430" lengthAdjust="spacingAndGlyphs" fill="url(#blue)" stroke="#0f172a" stroke-width="6" paint-order="stroke">DRAW BLOCK SURVIVE</text>
+    <g transform="translate(344 88) scale(0.86)">
+      <circle cx="42" cy="42" r="34" fill="#ffd166" stroke="#57320a" stroke-width="6"/>
+      <path d="M20 42h44M26 28h32M28 56h28" stroke="#b45309" stroke-width="6" stroke-linecap="round"/>
+      <circle cx="42" cy="50" r="9" fill="#3b1b08"/>
+    </g>
+  </g>
+</svg>
