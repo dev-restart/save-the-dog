@@ -63,13 +63,13 @@ export class BeeNavigation {
 			return cached.target;
 		}
 
-		// 직선 공격이 막히면 A* → 강아지 주변 공격 후보 → 방어선 끝점 probe 순서로 덜 막힌 경유점을 찾는다.
+		// 직선 공격이 막히면 여러 벌이 한 점에 몰리지 않도록 bee id/role별로 공격 후보와 우회 probe를 분산한다.
 		const target =
-			this.findPathTarget(bee.position, dogPosition, navigationBodies) ??
 			(this.profile.usesDogAttackCandidates
-				? this.findBestAttackTarget(bee.position, dogPosition, navigationBodies)
+				? this.findBestAttackTarget(bee, dogPosition, navigationBodies)
 				: null) ??
-			this.chooseGapProbeTarget(bee.position, dogPosition, navigationBodies, blocker);
+			this.findPathTarget(bee.position, dogPosition, navigationBodies, bee.id) ??
+			this.chooseGapProbeTarget(bee.position, dogPosition, navigationBodies, blocker, bee.id);
 		this.routeCache.set(bee.id, {
 			target,
 			expiresAtMs: nowMs + this.profile.routeCacheMs
@@ -137,23 +137,29 @@ export class BeeNavigation {
 		return dogPosition;
 	}
 
-	private findPathTarget(start: Point, goal: Point, blockers: Matter.Body[]): Point | null {
-		const path = this.findPath(start, goal, blockers, (point, key, goalKey) => {
+	private findPathTarget(start: Point, goal: Point, blockers: Matter.Body[], beeId = 0): Point | null {
+		const routeGoal = this.getCohortGoal(goal, beeId);
+		const path = this.findPath(start, routeGoal, blockers, (point, key, goalKey) => {
 			if (key === goalKey) return true;
 			return (
-				distance(point, goal) <= DOG_ATTACK_RADIUS &&
-				!this.findLineBlocker(point, goal, blockers, PHYSICS.beeRadius + 2)
+				distance(point, routeGoal) <= DOG_ATTACK_RADIUS &&
+				!this.findLineBlocker(point, routeGoal, blockers, PHYSICS.beeRadius + 2)
 			);
 		});
 
-		return path ? pickRouteLookahead(start, [...path, goal], this.profile.routeLookahead) : null;
+		return path ? pickRouteLookahead(start, [...path, routeGoal], this.profile.routeLookahead) : null;
 	}
 
-	private findBestAttackTarget(start: Point, goal: Point, blockers: Matter.Body[]): Point | null {
+	private findBestAttackTarget(bee: BeeNavigationState, goal: Point, blockers: Matter.Body[]): Point | null {
+		const role = getBeeRole(bee.id, this.stageId);
 		const candidates = this.createDogAttackCandidates(goal, blockers)
 			.map((point) => ({
 				point,
-				score: distance(start, point) + distance(point, goal) * 0.65 + this.proximityPenalty(point, blockers)
+				score:
+					distance(bee.position, point) +
+					distance(point, goal) * 0.65 +
+					this.proximityPenalty(point, blockers) +
+					this.roleCohortPenalty(point, goal, role, bee.id)
 			}))
 			.sort((a, b) => a.score - b.score)
 			.slice(0, this.profile.attackCandidateLimit);
@@ -163,10 +169,11 @@ export class BeeNavigation {
 		let pathSearches = 0;
 
 		for (const candidate of candidates) {
-			if (!this.findLineBlocker(start, candidate.point, blockers, PHYSICS.beeRadius + 2)) {
-				const score = distance(start, candidate.point) + distance(candidate.point, goal);
+			if (!this.findLineBlocker(bee.position, candidate.point, blockers, PHYSICS.beeRadius + 2)) {
+				const score = distance(bee.position, candidate.point) + distance(candidate.point, goal);
 				if (score < bestScore) {
-					bestPath = [start, candidate.point, goal];
+					// 후보 자체를 1차 목표로 삼아 벌 무리가 강아지 한 점이 아니라 주변 빈 공간을 나눠 찌르게 한다.
+					bestPath = [bee.position, candidate.point];
 					bestScore = score;
 				}
 				continue;
@@ -175,17 +182,40 @@ export class BeeNavigation {
 			if (pathSearches >= this.profile.attackPathSearchLimit) continue;
 			pathSearches += 1;
 
-			const path = this.findPath(start, candidate.point, blockers);
+			const path = this.findPath(bee.position, candidate.point, blockers);
 			if (!path) continue;
 
 			const score = pathDistance(path) + distance(candidate.point, goal);
 			if (score < bestScore) {
-				bestPath = [...path, candidate.point, goal];
+				bestPath = [...path, candidate.point];
 				bestScore = score;
 			}
 		}
 
-		return bestPath ? pickRouteLookahead(start, bestPath, this.profile.routeLookahead) : null;
+		return bestPath ? pickRouteLookahead(bee.position, bestPath, this.profile.routeLookahead) : null;
+	}
+
+	private getCohortGoal(goal: Point, beeId: number): Point {
+		if (this.stageId < 3) return goal;
+		const cohort = Math.abs(beeId + this.stageId) % 5;
+		const angle = -Math.PI * 0.85 + cohort * (Math.PI * 1.7) / 4;
+		const radius = 20 + this.profile.intelligence * 34;
+		return this.clampNavigationPoint({
+			x: goal.x + Math.cos(angle) * radius,
+			y: goal.y + Math.sin(angle) * radius
+		});
+	}
+
+	private roleCohortPenalty(point: Point, goal: Point, role: ReturnType<typeof getBeeRole>, beeId: number): number {
+		const angle = Math.atan2(point.y - goal.y, point.x - goal.x);
+		const cohort = Math.abs(beeId + this.stageId) % 5;
+		const desiredAngle =
+			role === 'flanker-left'
+				? -Math.PI * 0.65
+				: role === 'flanker-right'
+					? Math.PI * 0.65
+					: -Math.PI + cohort * (Math.PI * 2) / 5;
+		return Math.abs(shortestAngleDelta(angle, desiredAngle)) * (80 + this.profile.intelligence * 90);
 	}
 
 	private createDogAttackCandidates(goal: Point, blockers: Matter.Body[]): Point[] {
@@ -309,10 +339,11 @@ export class BeeNavigation {
 		};
 	}
 
-	private chooseGapProbeTarget(start: Point, goal: Point, blockers: Matter.Body[], blocker: Matter.Body): Point {
+	private chooseGapProbeTarget(start: Point, goal: Point, blockers: Matter.Body[], blocker: Matter.Body, beeId = 0): Point {
 		const candidates = this.createProbeCandidates(blocker, goal);
 		let bestTarget = goal;
 		let bestScore = Number.POSITIVE_INFINITY;
+		const cohortGoal = this.getCohortGoal(goal, beeId);
 
 		for (const candidate of candidates) {
 			if (this.isPointBlocked(candidate, blockers, ROUTE_PADDING)) continue;
@@ -322,6 +353,7 @@ export class BeeNavigation {
 			const score =
 				distance(start, candidate) +
 				distance(candidate, goal) +
+				distance(candidate, cohortGoal) * 0.28 +
 				(firstBlocked ? 600 : 0) +
 				(secondBlocked ? 180 : 0) +
 				this.proximityPenalty(candidate, blockers);
@@ -455,6 +487,10 @@ function findClosestBodyPosition(point: Point, bodies: Matter.Body[]): Point | n
 		}
 	}
 	return closest?.position ?? null;
+}
+
+function shortestAngleDelta(a: number, b: number): number {
+	return Math.atan2(Math.sin(a - b), Math.cos(a - b));
 }
 
 function pickRouteLookahead(start: Point, path: Point[], lookahead: number): Point {

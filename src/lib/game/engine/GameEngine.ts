@@ -7,7 +7,7 @@ import { clamp } from '../geometry.js';
 import type { CanvasSize, GamePhase, Point, SkinId, StageData } from '../types.js';
 import { BeeSystem } from './BeeSystem.js';
 import { CanvasRenderer } from './CanvasRenderer.js';
-import { setupCollisionEvents } from './CollisionHandler.js';
+import { setupCollisionEvents, type DogHitReason } from './CollisionHandler.js';
 import { DrawingSystem } from './DrawingSystem.js';
 import { ObjectFactory } from './ObjectFactory.js';
 import { FixedStepClock } from './GameLoopClock.js';
@@ -20,6 +20,7 @@ interface GameEngineCallbacks {
 	onTimerChange: (elapsedMs: number) => void;
 	onCleared: (score: StageScore) => void;
 	onFailed: () => void;
+	onDogAttacked: () => void;
 }
 
 export class GameEngine {
@@ -136,7 +137,7 @@ export class GameEngine {
 
 		Matter.Composite.add(this.world, [...walls, ...obstacles, ...hives, this.dogBody]);
 		this.beeSystem = new BeeSystem(this.stage.hives, this.world, this.size, this.stage.id);
-		this.cleanupCollision = setupCollisionEvents(this.engine, () => this.fail());
+		this.cleanupCollision = setupCollisionEvents(this.engine, (reason) => this.fail(reason));
 	}
 
 	private renderLoop = (timestamp: number): void => {
@@ -147,6 +148,7 @@ export class GameEngine {
 			for (const stepMs of tick.steps) {
 				this.beeSystem?.update(stepMs, this.dogBody);
 				Matter.Engine.update(this.engine, stepMs);
+				this.beeSystem?.enforceDrawingBarriers();
 			}
 
 			this.survivalElapsedMs += tick.simulationDeltaMs;
@@ -179,10 +181,11 @@ export class GameEngine {
 		this.callbacks.onCleared(score);
 	}
 
-	private fail(): void {
+	private fail(reason: DogHitReason): void {
 		if (this.phase !== 'simulating') return;
 		this.phase = 'failed';
 		this.engine.gravity.y = 0;
+		if (reason === 'bee') this.callbacks.onDogAttacked();
 		this.callbacks.onPhaseChange(this.phase);
 		this.callbacks.onFailed();
 	}

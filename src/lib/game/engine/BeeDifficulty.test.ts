@@ -14,7 +14,7 @@ describe('createBeeDifficultyProfile', () => {
 		expect(profile.aiRefreshBudget).toBeGreaterThanOrEqual(20);
 	});
 
-	it('중후반 스테이지는 경로 탐색과 방어선 압박 능력이 강해진다', () => {
+	it('중후반 스테이지는 경로 탐색/속도/공격 후보와 방어선 압박이 강해지되 방어선 파괴는 하지 않는다', () => {
 		const early = createBeeDifficultyProfile(1);
 		const late = createBeeDifficultyProfile(14);
 
@@ -24,11 +24,13 @@ describe('createBeeDifficultyProfile', () => {
 		expect(late.maxSpeed).toBeGreaterThan(early.maxSpeed);
 		expect(late.aiRefreshBudget).toBeGreaterThanOrEqual(3);
 		expect(late.routeIterationLimit).toBeGreaterThan(early.routeIterationLimit);
+		expect(late.attackCandidateLimit).toBeGreaterThanOrEqual(early.attackCandidateLimit);
 		expect(late.canPressureDrawing).toBe(true);
-		expect(late.canDamageDrawing).toBe(true);
+		expect(late.canDamageDrawing).toBe(false);
 		expect(late.canDragDrawing).toBe(true);
 		expect(late.canRotateDrawing).toBe(true);
-		expect(late.drawingDurability).toBeLessThan(early.drawingDurability);
+		expect(late.drawingDurability).toBe(Number.POSITIVE_INFINITY);
+		expect(late.drawingDragPerMs).toBeGreaterThan(0);
 	});
 });
 

@@ -6,6 +6,7 @@
     Palette,
     Play,
     RotateCcw,
+    Settings,
     Star,
     Trophy,
     X,
@@ -21,10 +22,12 @@
     stageStars: Record<string, number>;
     canContinue: boolean;
     skin: SkinId;
+    hapticsEnabled: boolean;
     onStart: () => void;
     onContinue: () => void;
     onStageSelect: (stage: number) => void;
     onSkinChange: (skin: SkinId) => void;
+    onHapticsChange: (enabled: boolean) => void;
   }
 
   let {
@@ -34,10 +37,12 @@
     stageStars,
     canContinue,
     skin,
+    hapticsEnabled,
     onStart,
     onContinue,
     onStageSelect,
     onSkinChange,
+    onHapticsChange,
   }: Props = $props();
 
   let selectedSkin = $derived(
@@ -48,6 +53,7 @@
   let introBackgroundSrc = $derived(selectedSkin.menu.introBackground);
   let introTitleSrc = $derived(selectedSkin.menu.introTitle);
   let showStageMap = $state(false);
+  let showSettings = $state(false);
   let continueStage = $derived(Math.max(1, highestStage));
   let stageMapLimit = $derived(Math.max(20, continueStage + 4));
   let stageMapItems = $derived(
@@ -71,7 +77,7 @@
     aria-hidden="true"
   />
 
-  <div class="topbar relative z-10 flex items-center justify-start">
+  <div class="topbar relative z-10 flex items-center justify-between gap-2">
     <div class="hud-stats" aria-label="플레이 기록">
       <button
         class="hud-chip hud-chip-button"
@@ -91,6 +97,15 @@
         <span>별 {totalStars.toFixed(1)}</span>
       </div>
     </div>
+    <button
+      class="settings-button"
+      type="button"
+      aria-label="설정 열기"
+      aria-expanded={showSettings}
+      onclick={() => (showSettings = !showSettings)}
+    >
+      <Settings class="size-5" />
+    </button>
   </div>
 
   <div class="title-zone relative z-10">
@@ -151,6 +166,47 @@
       처음부터 시작
     </Button>
   </div>
+
+  {#if showSettings}
+    <div
+      class="settings-popover relative z-20"
+      role="dialog"
+      aria-modal="false"
+      aria-label="설정"
+    >
+      <div class="settings-panel">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-1 text-sm font-black text-slate-900">
+            <Settings class="size-4" />
+            설정
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="설정 닫기"
+            onclick={() => (showSettings = false)}
+          >
+            <X class="size-4" />
+          </Button>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-title">햅틱 설정</div>
+            <div class="settings-description">벌이 강아지를 공격할 때 진동합니다.</div>
+          </div>
+          <button
+            type="button"
+            class="haptic-toggle settings-toggle"
+            aria-pressed={hapticsEnabled}
+            onclick={() => onHapticsChange(!hapticsEnabled)}
+          >
+            <span>{hapticsEnabled ? '진동 켜짐' : '진동 꺼짐'}</span>
+            <span class="haptic-switch" class:haptic-switch-on={hapticsEnabled}></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   {#if showStageMap}
     <div
@@ -326,6 +382,67 @@
     transform: scale(0.96);
   }
 
+  .settings-button {
+    display: inline-flex;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    background: var(--panel-bg);
+    color: var(--panel-text);
+    box-shadow: 0 7px 18px var(--shadow);
+    backdrop-filter: blur(10px);
+    transition:
+      transform 120ms ease,
+      background 120ms ease;
+  }
+
+  .settings-button:active {
+    transform: scale(0.94);
+  }
+
+  .settings-popover {
+    position: absolute;
+    top: calc(max(1.4rem, env(safe-area-inset-top)) + 50px);
+    right: 1rem;
+    left: 1rem;
+    display: flex;
+    justify-content: flex-end;
+    pointer-events: none;
+  }
+
+  .settings-panel {
+    width: min(100%, 340px);
+    border: 1px solid var(--panel-border);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.93);
+    padding: 0.9rem;
+    color: #1e293b;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.28);
+    backdrop-filter: blur(14px);
+    pointer-events: auto;
+  }
+
+  .settings-item {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  .settings-title {
+    font-size: 0.9rem;
+    font-weight: 900;
+  }
+
+  .settings-description {
+    margin-top: 0.15rem;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
   .stage-map-backdrop {
     position: absolute;
     inset: 0;
@@ -480,6 +597,53 @@
   :global(.skin-button[aria-pressed="false"]) {
     background: var(--secondary-bg);
     color: var(--secondary-text);
+  }
+
+  .haptic-toggle {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    border-radius: 12px;
+    background: var(--secondary-bg);
+    padding: 0.55rem 0.65rem;
+    color: var(--secondary-text);
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .settings-toggle {
+    min-height: 44px;
+  }
+
+  .haptic-switch {
+    position: relative;
+    width: 2.35rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.25);
+    transition: background 0.16s ease;
+  }
+
+  .haptic-switch::after {
+    position: absolute;
+    top: 0.18rem;
+    left: 0.18rem;
+    width: 0.9rem;
+    height: 0.9rem;
+    border-radius: 999px;
+    background: #fff;
+    content: "";
+    transition: transform 0.16s ease;
+  }
+
+  .haptic-switch-on {
+    background: var(--selected-bg);
+  }
+
+  .haptic-switch-on::after {
+    transform: translateX(1.1rem);
   }
 
   :global(.primary-action) {

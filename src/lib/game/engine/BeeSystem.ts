@@ -10,6 +10,7 @@ import { BeeCombat } from './BeeCombat.js';
 import { createBeeDifficultyProfile, type BeeDifficultyProfile } from './BeeDifficulty.js';
 import { BeeNavigation } from './BeeNavigation.js';
 import { BeeSpawner } from './BeeSpawner.js';
+import { enforceBeeDrawingBarriers, rememberBeePositions } from './BeeBarrierGuard.js';
 import { chooseBeeSteeringDirection } from './BeeSteering.js';
 
 const NAVIGATION_LABELS = new Set(['drawing', 'ground', 'platform', 'wall']);
@@ -29,6 +30,7 @@ export class BeeSystem {
 	private profile: BeeDifficultyProfile;
 	private aiScheduler = new BeeAiScheduler(BEE_AI_UPDATE_INTERVAL_MS);
 	private beeDirectionById = new Map<number, Point>();
+	private previousBeePositions = new Map<number, Point>();
 	private bodyCache: WorldBodyCache = { navigationBodies: [], drawings: [] };
 	private running = false;
 	private routeClockMs = 0;
@@ -48,6 +50,7 @@ export class BeeSystem {
 
 	start(): void {
 		this.running = true;
+		this.refreshBodyCache();
 	}
 
 	update(deltaMs: number, dogBody: Matter.Body): void {
@@ -57,6 +60,8 @@ export class BeeSystem {
 		for (const hive of this.spawner.collectDueSpawns(deltaMs, this.bees.length)) {
 			this.spawnBee(hive);
 		}
+
+		rememberBeePositions(this.bees, this.previousBeePositions);
 
 		const hasBeeWithoutDirection = this.bees.some((bee) => !this.beeDirectionById.has(bee.id));
 		const shouldRefreshAi = this.aiScheduler.tick(deltaMs, hasBeeWithoutDirection);
@@ -89,6 +94,7 @@ export class BeeSystem {
 		this.navigation.clearCache();
 		this.aiScheduler.reset();
 		this.beeDirectionById.clear();
+		this.previousBeePositions.clear();
 		this.bodyCache = { navigationBodies: [], drawings: [] };
 		this.beeForceById.clear();
 		this.combat.clear();
@@ -97,6 +103,10 @@ export class BeeSystem {
 
 	getBees(): Matter.Body[] {
 		return this.bees;
+	}
+
+	enforceDrawingBarriers(): void {
+		enforceBeeDrawingBarriers(this.bees, this.bodyCache.drawings, this.previousBeePositions);
 	}
 
 	private spawnBee(hive: HiveData): void {

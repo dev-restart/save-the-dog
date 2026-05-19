@@ -24,3 +24,4 @@ export const COLLISION_CATEGORY = {
 
 export const STORAGE_KEY = 'save_the_dog_progress';
 export const SKIN_STORAGE_KEY = 'save_the_dog_skin';
+export const HAPTIC_STORAGE_KEY = 'save_the_dog_haptics';

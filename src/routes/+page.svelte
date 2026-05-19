@@ -6,6 +6,7 @@
 	import MainMenu from '$lib/components/game/MainMenu.svelte';
 	import ResultOverlay from '$lib/components/game/ResultOverlay.svelte';
 	import { GameSessionState } from '$lib/game/state/game-session.svelte.js';
+	import { triggerHaptic } from '$lib/game/haptics.js';
 	import type { StageScore } from '$lib/game/scoring.js';
 	import { getStage } from '$lib/game/stages/index.js';
 	import type { GamePhase, SkinId } from '$lib/game/types.js';
@@ -65,8 +66,16 @@
 		session.markFailed();
 	}
 
+	function handleDogAttacked(): void {
+		triggerHaptic('attack', session.hapticsEnabled);
+	}
+
 	function handleSkinChange(skin: SkinId): void {
 		session.setSkin(skin);
+	}
+
+	function handleHapticsChange(enabled: boolean): void {
+		session.setHapticsEnabled(enabled);
 	}
 </script>
 
@@ -87,10 +96,12 @@
 			stageStars={session.stageStars}
 			canContinue={session.canContinue}
 			skin={session.skin}
+			hapticsEnabled={session.hapticsEnabled}
 			onStart={startNewGame}
 			onContinue={continueGame}
 			onStageSelect={selectStage}
 			onSkinChange={handleSkinChange}
+			onHapticsChange={handleHapticsChange}
 		/>
 	{:else}
 		<div class="relative size-full overflow-hidden">
@@ -103,6 +114,7 @@
 				onTimerChange={(value) => session.setSurvivalElapsed(value)}
 				onCleared={handleClear}
 				onFailed={handleFail}
+				onDogAttacked={handleDogAttacked}
 			/>
 			<GameHud
 				stage={stage.id}

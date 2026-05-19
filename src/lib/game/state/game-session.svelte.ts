@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { PHYSICS, SKIN_STORAGE_KEY, STORAGE_KEY } from '../constants.js';
+import { HAPTIC_STORAGE_KEY, PHYSICS, SKIN_STORAGE_KEY, STORAGE_KEY } from '../constants.js';
 import { DEFAULT_SKIN, isSkinId } from '../skins.js';
 import type { StageScore } from '../scoring.js';
 import type { GamePhase, SkinId, StoredProgress } from '../types.js';
@@ -58,6 +58,7 @@ export class GameSessionState {
 	currentScore = $state<StageScore | null>(null);
 	hasStarted = $state(false);
 	skin = $state<SkinId>(DEFAULT_SKIN);
+	hapticsEnabled = $state(true);
 
 	remainingSeconds = $derived(
 		Math.max(0, (this.survivalDurationMs - this.survivalElapsedMs) / 1000)
@@ -78,6 +79,7 @@ export class GameSessionState {
 
 		const savedSkin = localStorage.getItem(SKIN_STORAGE_KEY);
 		this.skin = isSkinId(savedSkin) ? savedSkin : DEFAULT_SKIN;
+		this.hapticsEnabled = localStorage.getItem(HAPTIC_STORAGE_KEY) !== 'off';
 	}
 
 	start(stageId = 1): void {
@@ -129,6 +131,11 @@ export class GameSessionState {
 	setSkin(skin: SkinId): void {
 		this.skin = skin;
 		if (browser) localStorage.setItem(SKIN_STORAGE_KEY, skin);
+	}
+
+	setHapticsEnabled(enabled: boolean): void {
+		this.hapticsEnabled = enabled;
+		if (browser) localStorage.setItem(HAPTIC_STORAGE_KEY, enabled ? 'on' : 'off');
 	}
 
 	markCleared(score: StageScore): void {

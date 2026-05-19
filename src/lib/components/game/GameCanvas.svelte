@@ -12,6 +12,7 @@
 		onTimerChange: (elapsedMs: number) => void;
 		onCleared: (score: StageScore) => void;
 		onFailed: () => void;
+		onDogAttacked: () => void;
 	}
 
 	let {
@@ -22,7 +23,8 @@
 		onInkChange,
 		onTimerChange,
 		onCleared,
-		onFailed
+		onFailed,
+		onDogAttacked
 	}: Props = $props();
 
 	let canvas = $state<HTMLCanvasElement | null>(null);
@@ -70,7 +72,8 @@
 			onInkChange,
 			onTimerChange,
 			onCleared,
-			onFailed
+			onFailed,
+			onDogAttacked
 		});
 		engine = instance;
 		instance.start();

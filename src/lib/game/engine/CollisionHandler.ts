@@ -1,15 +1,19 @@
 import Matter from 'matter-js';
 
-export function setupCollisionEvents(engine: Matter.Engine, onDogDead: () => void): () => void {
+export type DogHitReason = 'bee' | 'spike' | 'deadzone';
+
+export function setupCollisionEvents(engine: Matter.Engine, onDogDead: (reason: DogHitReason) => void): () => void {
 	const handler = (event: Matter.IEventCollision<Matter.Engine>) => {
 		for (const pair of event.pairs) {
 			const labels = [pair.bodyA.label, pair.bodyB.label];
-			const dogHit =
-				labels.includes('dog') &&
-				(labels.includes('bee') || labels.includes('spike') || labels.includes('deadzone'));
+			if (!labels.includes('dog')) continue;
 
-			if (dogHit) {
-				onDogDead();
+			const reason = labels.find((label): label is DogHitReason =>
+				label === 'bee' || label === 'spike' || label === 'deadzone'
+			);
+
+			if (reason) {
+				onDogDead(reason);
 				return;
 			}
 		}

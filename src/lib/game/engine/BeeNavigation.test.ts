@@ -30,13 +30,15 @@ describe('BeeNavigation', () => {
 		expect(target.y).not.toBe(120);
 	});
 
-	it('경로 캐시가 살아있는 동안 같은 벌은 같은 경유점을 재사용한다', () => {
-		const navigation = new BeeNavigation(size, createBeeDifficultyProfile(12), 12);
+	it('막힌 경로에서는 벌 id별로 서로 다른 공격 루트 후보를 고른다', () => {
+		const navigation = new BeeNavigation(size, createBeeDifficultyProfile(14), 14);
 		const blocker = rectangle(160, 120, 36, 150);
-		const bee = { id: 77, position: { x: 40, y: 120 } };
-		const first = navigation.chooseTarget(bee, { x: 280, y: 120 }, [blocker], 100);
-		const second = navigation.chooseTarget(bee, { x: 282, y: 122 }, [blocker], 120);
+		const dog = { x: 280, y: 120 };
+		const targets = [2, 3, 4, 5, 6].map((id) =>
+			navigation.chooseTarget({ id, position: { x: 40, y: 120 } }, dog, [blocker], id * 100)
+		);
+		const uniqueTargetKeys = new Set(targets.map((target) => `${Math.round(target.x / 8)}:${Math.round(target.y / 8)}`));
 
-		expect(second).toEqual(first);
+		expect(uniqueTargetKeys.size).toBeGreaterThanOrEqual(2);
 	});
 });
