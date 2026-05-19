@@ -22,7 +22,19 @@
 		session.load();
 		audioManager.setPreferences(session.getAudioPreferences());
 		audioManager.setSkin(session.skin);
-		return () => audioManager.destroy();
+		audioManager.attemptAutoplay();
+
+		const unlockAudio = () => audioManager.unlock();
+		document.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
+		document.addEventListener('keydown', unlockAudio, { once: true, capture: true });
+		document.addEventListener('touchstart', unlockAudio, { once: true, capture: true });
+
+		return () => {
+			document.removeEventListener('pointerdown', unlockAudio, { capture: true });
+			document.removeEventListener('keydown', unlockAudio, { capture: true });
+			document.removeEventListener('touchstart', unlockAudio, { capture: true });
+			audioManager.destroy();
+		};
 	});
 
 	$effect(() => {

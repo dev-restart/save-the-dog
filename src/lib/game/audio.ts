@@ -77,6 +77,17 @@ export class GameAudioManager {
 		if (this.musicEnabled && this.unlocked) void nextBgm.play().catch(() => undefined);
 	}
 
+	attemptAutoplay(): void {
+		if (!browser || !this.musicEnabled || !this.bgm) return;
+		void this.bgm
+			.play()
+			.then(() => {
+				this.unlocked = true;
+				this.syncBeeBuzzPlayback();
+			})
+			.catch(() => undefined);
+	}
+
 	unlock(): void {
 		this.unlocked = true;
 		if (this.musicEnabled) void this.bgm?.play().catch(() => undefined);
