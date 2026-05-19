@@ -23,11 +23,15 @@
     canContinue: boolean;
     skin: SkinId;
     hapticsEnabled: boolean;
+    musicEnabled: boolean;
+    sfxEnabled: boolean;
     onStart: () => void;
     onContinue: () => void;
     onStageSelect: (stage: number) => void;
     onSkinChange: (skin: SkinId) => void;
     onHapticsChange: (enabled: boolean) => void;
+    onMusicChange: (enabled: boolean) => void;
+    onSfxChange: (enabled: boolean) => void;
   }
 
   let {
@@ -38,11 +42,15 @@
     canContinue,
     skin,
     hapticsEnabled,
+    musicEnabled,
+    sfxEnabled,
     onStart,
     onContinue,
     onStageSelect,
     onSkinChange,
     onHapticsChange,
+    onMusicChange,
+    onSfxChange,
   }: Props = $props();
 
   let selectedSkin = $derived(
@@ -188,6 +196,36 @@
           >
             <X class="size-4" />
           </Button>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-title">배경음악</div>
+            <div class="settings-description">스킨별 음악을 메뉴와 게임 중에 재생합니다.</div>
+          </div>
+          <button
+            type="button"
+            class="haptic-toggle settings-toggle"
+            aria-pressed={musicEnabled}
+            onclick={() => onMusicChange(!musicEnabled)}
+          >
+            <span>{musicEnabled ? '음악 켜짐' : '음악 꺼짐'}</span>
+            <span class="haptic-switch" class:haptic-switch-on={musicEnabled}></span>
+          </button>
+        </div>
+        <div class="settings-item">
+          <div>
+            <div class="settings-title">효과음</div>
+            <div class="settings-description">벌 윙윙 소리와 방어막 충돌음을 재생합니다.</div>
+          </div>
+          <button
+            type="button"
+            class="haptic-toggle settings-toggle"
+            aria-pressed={sfxEnabled}
+            onclick={() => onSfxChange(!sfxEnabled)}
+          >
+            <span>{sfxEnabled ? '효과음 켜짐' : '효과음 꺼짐'}</span>
+            <span class="haptic-switch" class:haptic-switch-on={sfxEnabled}></span>
+          </button>
         </div>
         <div class="settings-item">
           <div>
@@ -429,6 +467,12 @@
   .settings-item {
     display: grid;
     gap: 0.65rem;
+    padding-top: 0.7rem;
+  }
+
+  .settings-item + .settings-item {
+    margin-top: 0.7rem;
+    border-top: 1px solid rgba(15, 23, 42, 0.08);
   }
 
   .settings-title {

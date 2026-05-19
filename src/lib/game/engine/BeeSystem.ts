@@ -21,6 +21,11 @@ interface WorldBodyCache {
 	drawings: Matter.Body[];
 }
 
+export interface BeeSystemUpdateResult {
+	drawingAttacked: boolean;
+	hasActiveBees: boolean;
+}
+
 export class BeeSystem {
 	private spawner: BeeSpawner;
 	private bees: Matter.Body[] = [];
@@ -35,6 +40,7 @@ export class BeeSystem {
 	private running = false;
 	private routeClockMs = 0;
 	private aiCursor = 0;
+
 
 	constructor(
 		hives: HiveData[],
@@ -53,9 +59,10 @@ export class BeeSystem {
 		this.refreshBodyCache();
 	}
 
-	update(deltaMs: number, dogBody: Matter.Body): void {
-		if (!this.running) return;
+	update(deltaMs: number, dogBody: Matter.Body): BeeSystemUpdateResult {
+		if (!this.running) return { drawingAttacked: false, hasActiveBees: false };
 		this.routeClockMs += deltaMs;
+		let drawingAttacked = false;
 
 		for (const hive of this.spawner.collectDueSpawns(deltaMs, this.bees.length)) {
 			this.spawnBee(hive);
@@ -78,11 +85,12 @@ export class BeeSystem {
 			const direction = this.beeDirectionById.get(bee.id) ?? { x: 0, y: 0 };
 			const force = hiveForce(direction, this.beeForceById.get(bee.id) ?? 0.002, this.profile.forceMultiplier);
 			Matter.Body.applyForce(bee, bee.position, force);
-			this.combat.attackDrawings(bee, dogBody, this.bodyCache.drawings, deltaMs);
+			drawingAttacked = this.combat.attackDrawings(bee, dogBody, this.bodyCache.drawings, deltaMs) || drawingAttacked;
 			capVelocity(bee, this.profile.maxSpeed);
 		}
 
 		this.removeOutOfBounds();
+		return { drawingAttacked, hasActiveBees: this.bees.length > 0 };
 	}
 
 	destroy(): void {

@@ -21,6 +21,8 @@ interface GameEngineCallbacks {
 	onCleared: (score: StageScore) => void;
 	onFailed: () => void;
 	onDogAttacked: () => void;
+	onDrawingAttacked: () => void;
+	onBeeActivityChange: (active: boolean) => void;
 }
 
 export class GameEngine {
@@ -41,6 +43,7 @@ export class GameEngine {
 	private survivalElapsedMs = 0;
 	private size: CanvasSize = { width: 390, height: 693 };
 	private cleanupCollision: (() => void) | null = null;
+	private beesActive = false;
 
 	constructor(
 		private canvas: HTMLCanvasElement,
@@ -72,6 +75,7 @@ export class GameEngine {
 	destroy(): void {
 		if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
 		this.cleanupCollision?.();
+		this.setBeesActive(false);
 		this.beeSystem?.destroy();
 		Matter.World.clear(this.world, false);
 		Matter.Engine.clear(this.engine);
@@ -146,7 +150,9 @@ export class GameEngine {
 		// Matter.js는 고정 delta로 여러 번 전진시키고, UI 타이머는 실제 처리된 물리 시간만 반영한다.
 		if (this.phase === 'simulating' && this.dogBody) {
 			for (const stepMs of tick.steps) {
-				this.beeSystem?.update(stepMs, this.dogBody);
+				const beeUpdate = this.beeSystem?.update(stepMs, this.dogBody);
+				if (beeUpdate?.drawingAttacked) this.callbacks.onDrawingAttacked();
+				if (beeUpdate) this.setBeesActive(beeUpdate.hasActiveBees);
 				Matter.Engine.update(this.engine, stepMs);
 				this.beeSystem?.enforceDrawingBarriers();
 			}
@@ -171,6 +177,7 @@ export class GameEngine {
 		if (this.phase !== 'simulating') return;
 		this.phase = 'cleared';
 		this.engine.gravity.y = 0;
+		this.setBeesActive(false);
 		this.beeSystem?.destroy();
 		const score = calculateStageScore({
 			inkRatio: this.drawing.getInkRatio(),
@@ -185,6 +192,7 @@ export class GameEngine {
 		if (this.phase !== 'simulating') return;
 		this.phase = 'failed';
 		this.engine.gravity.y = 0;
+		this.setBeesActive(false);
 		if (reason === 'bee') this.callbacks.onDogAttacked();
 		this.callbacks.onPhaseChange(this.phase);
 		this.callbacks.onFailed();
@@ -195,5 +203,11 @@ export class GameEngine {
 			x: clamp(point.x, 0, this.size.width),
 			y: clamp(point.y, 0, this.size.height)
 		};
+	}
+
+	private setBeesActive(active: boolean): void {
+		if (this.beesActive === active) return;
+		this.beesActive = active;
+		this.callbacks.onBeeActivityChange(active);
 	}
 }

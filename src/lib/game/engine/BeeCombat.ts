@@ -9,22 +9,25 @@ export class BeeCombat {
 		private profile: BeeDifficultyProfile
 	) {}
 
-	attackDrawings(bee: Matter.Body, dogBody: Matter.Body, drawings: Matter.Body[], deltaMs: number): void {
+	attackDrawings(bee: Matter.Body, dogBody: Matter.Body, drawings: Matter.Body[], deltaMs: number): boolean {
 		if (
 			(!this.profile.canPressureDrawing && !this.profile.canDamageDrawing && !this.profile.canDragDrawing) ||
 			drawings.length === 0
 		) {
-			return;
+			return false;
 		}
 
+		let attacked = false;
 		const collisions = Matter.Query.collides(bee, drawings);
 		for (const collision of collisions) {
 			const drawing = collision.bodyA.label === 'drawing' ? collision.bodyA : collision.bodyB;
 			if (drawing.label !== 'drawing') continue;
 
+			attacked = true;
 			if (this.profile.canDamageDrawing && !this.damageDrawing(drawing, deltaMs)) continue;
 			if (this.profile.canPressureDrawing) this.pressureDrawing(drawing, bee, dogBody, deltaMs);
 		}
+		return attacked;
 	}
 
 	clear(): void {

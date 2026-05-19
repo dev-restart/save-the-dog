@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
 import { HAPTIC_STORAGE_KEY, PHYSICS, SKIN_STORAGE_KEY, STORAGE_KEY } from '../constants.js';
+import { loadAudioPreferences, saveAudioPreferences, type AudioPreferences } from '../audio.js';
 import { DEFAULT_SKIN, isSkinId } from '../skins.js';
 import type { StageScore } from '../scoring.js';
 import type { GamePhase, SkinId, StoredProgress } from '../types.js';
@@ -59,6 +60,8 @@ export class GameSessionState {
 	hasStarted = $state(false);
 	skin = $state<SkinId>(DEFAULT_SKIN);
 	hapticsEnabled = $state(true);
+	musicEnabled = $state(true);
+	sfxEnabled = $state(true);
 
 	remainingSeconds = $derived(
 		Math.max(0, (this.survivalDurationMs - this.survivalElapsedMs) / 1000)
@@ -80,6 +83,9 @@ export class GameSessionState {
 		const savedSkin = localStorage.getItem(SKIN_STORAGE_KEY);
 		this.skin = isSkinId(savedSkin) ? savedSkin : DEFAULT_SKIN;
 		this.hapticsEnabled = localStorage.getItem(HAPTIC_STORAGE_KEY) !== 'off';
+		const audioPreferences = loadAudioPreferences();
+		this.musicEnabled = audioPreferences.musicEnabled;
+		this.sfxEnabled = audioPreferences.sfxEnabled;
 	}
 
 	start(stageId = 1): void {
@@ -138,6 +144,23 @@ export class GameSessionState {
 		if (browser) localStorage.setItem(HAPTIC_STORAGE_KEY, enabled ? 'on' : 'off');
 	}
 
+	setMusicEnabled(enabled: boolean): void {
+		this.musicEnabled = enabled;
+		this.saveAudioPreferences();
+	}
+
+	setSfxEnabled(enabled: boolean): void {
+		this.sfxEnabled = enabled;
+		this.saveAudioPreferences();
+	}
+
+	getAudioPreferences(): AudioPreferences {
+		return {
+			musicEnabled: this.musicEnabled,
+			sfxEnabled: this.sfxEnabled
+		};
+	}
+
 	markCleared(score: StageScore): void {
 		this.phase = 'cleared';
 		this.currentScore = score;
@@ -160,6 +183,10 @@ export class GameSessionState {
 		this.inkRatio = 1;
 		this.survivalElapsedMs = 0;
 		this.currentScore = null;
+	}
+
+	private saveAudioPreferences(): void {
+		saveAudioPreferences(this.getAudioPreferences());
 	}
 
 	private saveProgress(): void {

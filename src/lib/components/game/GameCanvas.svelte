@@ -13,6 +13,8 @@
 		onCleared: (score: StageScore) => void;
 		onFailed: () => void;
 		onDogAttacked: () => void;
+		onDrawingAttacked: () => void;
+		onBeeActivityChange: (active: boolean) => void;
 	}
 
 	let {
@@ -24,7 +26,9 @@
 		onTimerChange,
 		onCleared,
 		onFailed,
-		onDogAttacked
+		onDogAttacked,
+		onDrawingAttacked,
+		onBeeActivityChange
 	}: Props = $props();
 
 	let canvas = $state<HTMLCanvasElement | null>(null);
@@ -73,7 +77,9 @@
 			onTimerChange,
 			onCleared,
 			onFailed,
-			onDogAttacked
+			onDogAttacked,
+			onDrawingAttacked,
+			onBeeActivityChange
 		});
 		engine = instance;
 		instance.start();
