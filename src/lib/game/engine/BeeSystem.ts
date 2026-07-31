@@ -3,17 +3,21 @@ import Matter from 'matter-js';
 // BeeSystem은 Matter.js 월드와 벌 엔티티 생명주기만 조율한다.
 // 경로 탐색은 BeeNavigation, steering은 BeeSteering, 방어선 압박은 BeeCombat으로 분리해 유지보수 범위를 줄인다.
 import { PHYSICS } from '../constants.js';
-import type { CanvasSize, HiveData, Point } from '../types.js';
+import type { BeeAttackStyle, CanvasSize, HiveData, Point, StageDifficulty } from '../types.js';
 import { ObjectFactory } from './ObjectFactory.js';
 import { BeeAiScheduler } from './BeeAiScheduler.js';
 import { BeeCombat } from './BeeCombat.js';
 import { createBeeDifficultyProfile, type BeeDifficultyProfile } from './BeeDifficulty.js';
 import { BeeNavigation } from './BeeNavigation.js';
 import { BeeSpawner } from './BeeSpawner.js';
-import { enforceBeeDrawingBarriers, rememberBeePositions } from './BeeBarrierGuard.js';
+import {
+	enforceBeeDrawingBarriers,
+	isBeeSeparatedFromDogByDrawing,
+	rememberBeePositions
+} from './BeeBarrierGuard.js';
 import { chooseBeeSteeringDirection } from './BeeSteering.js';
 
-const NAVIGATION_LABELS = new Set(['drawing', 'ground', 'platform', 'wall']);
+const NAVIGATION_LABELS = new Set(['drawing', 'ground', 'platform', 'wall', 'brick', 'wood', 'ice', 'stone', 'rolling-boulder']);
 const BEE_AI_UPDATE_INTERVAL_MS = 60;
 
 interface WorldBodyCache {
@@ -30,6 +34,7 @@ export class BeeSystem {
 	private spawner: BeeSpawner;
 	private bees: Matter.Body[] = [];
 	private beeForceById = new Map<number, number>();
+	private beeAttackStyleById = new Map<number, BeeAttackStyle | undefined>();
 	private combat: BeeCombat;
 	private navigation: BeeNavigation;
 	private profile: BeeDifficultyProfile;
@@ -46,10 +51,11 @@ export class BeeSystem {
 		hives: HiveData[],
 		private world: Matter.World,
 		private size: CanvasSize,
-		private stageId = 1
+		private stageId = 1,
+		difficulty?: StageDifficulty
 	) {
 		this.spawner = new BeeSpawner(hives);
-		this.profile = createBeeDifficultyProfile(stageId);
+		this.profile = createBeeDifficultyProfile(stageId, difficulty);
 		this.combat = new BeeCombat(world, this.profile);
 		this.navigation = new BeeNavigation(size, this.profile, stageId);
 	}
@@ -105,6 +111,7 @@ export class BeeSystem {
 		this.previousBeePositions.clear();
 		this.bodyCache = { navigationBodies: [], drawings: [] };
 		this.beeForceById.clear();
+		this.beeAttackStyleById.clear();
 		this.combat.clear();
 		this.aiCursor = 0;
 	}
@@ -117,6 +124,17 @@ export class BeeSystem {
 		enforceBeeDrawingBarriers(this.bees, this.bodyCache.drawings, this.previousBeePositions);
 	}
 
+	isDogProtectedFromBee(bee: Matter.Body, dogBody: Matter.Body): boolean {
+		this.refreshBodyCache();
+		return isBeeSeparatedFromDogByDrawing(
+			bee,
+			dogBody,
+			this.bodyCache.drawings,
+			PHYSICS.beeRadius,
+			this.previousBeePositions.get(bee.id)
+		);
+	}
+
 	private spawnBee(hive: HiveData): void {
 		const bee = ObjectFactory.createBee({ x: hive.x, y: hive.y }, this.size);
 		Matter.Body.setVelocity(bee, {
@@ -125,6 +143,7 @@ export class BeeSystem {
 		});
 		Matter.Composite.add(this.world, bee);
 		this.beeForceById.set(bee.id, hive.beeForce ?? 0.002);
+		this.beeAttackStyleById.set(bee.id, hive.attackStyle);
 		this.bees.push(bee);
 	}
 
@@ -140,7 +159,13 @@ export class BeeSystem {
 
 	private refreshBeeDirection(bee: Matter.Body, dogBody: Matter.Body): void {
 		// A*와 blocker 탐지는 CPU 비용이 커서 fixed-step마다 돌리지 않고 짧은 AI tick마다 방향만 갱신한다.
-		const target = this.navigation.chooseTarget(bee, dogBody.position, this.bodyCache.navigationBodies, this.routeClockMs);
+		const target = this.navigation.chooseTarget(
+			bee,
+			dogBody.position,
+			this.bodyCache.navigationBodies,
+			this.routeClockMs,
+			this.beeAttackStyleById.get(bee.id)
+		);
 		const direction = chooseBeeSteeringDirection(
 			bee.position,
 			target,
@@ -191,6 +216,7 @@ export class BeeSystem {
 				this.navigation.clearCache(bee.id);
 				this.beeDirectionById.delete(bee.id);
 				this.beeForceById.delete(bee.id);
+				this.beeAttackStyleById.delete(bee.id);
 			} else {
 				active.push(bee);
 			}

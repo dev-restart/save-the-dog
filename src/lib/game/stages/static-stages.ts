@@ -1,9 +1,28 @@
 import { PHYSICS } from '../constants.js';
-import type { StageData } from '../types.js';
+import type { HiveData, ObstacleData, Point, StageData, StageDesignType, StageEnvironment } from '../types.js';
+import stageOverrides from './stage-overrides.json';
 
 const ground = { type: 'ground' as const, x: 195, y: 660, width: 390, height: 20 };
 
-export const STATIC_STAGES: StageData[] = [
+interface StageOverride {
+	dog?: Point;
+	hives?: HiveData[];
+	obstacles?: ObstacleData[];
+	extraObstacles?: ObstacleData[];
+	inkLimit?: number;
+	survivalMs?: number;
+	environment?: StageEnvironment;
+	difficultyLabel?: string;
+	designType?: StageDesignType;
+	objectiveLabel?: string;
+	objectiveHint?: string;
+	dangerLabel?: string;
+	designerNote?: string;
+}
+
+const STAGE_OVERRIDES = stageOverrides as Record<string, StageOverride>;
+
+export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 	{
 		id: 1,
 		dog: { x: 195, y: 530 },
@@ -270,14 +289,79 @@ export const STATIC_STAGES: StageData[] = [
 	}
 ];
 
+export function applyStageOverride(stage: StageData): StageData {
+	const override = STAGE_OVERRIDES[String(stage.id)];
+	if (!override) return stage;
+
+	return {
+		...stage,
+		dog: override.dog ?? stage.dog,
+		hives: override.hives ?? stage.hives,
+		obstacles: resolveStageObstacles(stage, override),
+		inkLimit: override.inkLimit ?? stage.inkLimit,
+		survivalMs: Math.max(override.survivalMs ?? stage.survivalMs, PHYSICS.defaultSurvivalMs),
+		environment: override.environment ?? stage.environment,
+		difficultyLabel: override.difficultyLabel ?? stage.difficultyLabel,
+		designType: override.designType ?? stage.designType,
+		objectiveLabel: override.objectiveLabel ?? stage.objectiveLabel,
+		objectiveHint: override.objectiveHint ?? stage.objectiveHint,
+		dangerLabel: override.dangerLabel ?? stage.dangerLabel,
+		designerNote: override.designerNote ?? stage.designerNote
+	};
+}
+
+function resolveStageObstacles(stage: StageData, override: StageOverride): ObstacleData[] {
+	if (override.obstacles) return override.obstacles;
+
+	const extraObstacles = override.extraObstacles ?? [];
+	if (extraObstacles.length === 0) return stage.obstacles;
+
+	const extraHazards = extraObstacles.filter(isPoolHazard);
+	const baseObstacles = stage.obstacles.filter((obstacle) => {
+		if (obstacle.type !== 'spike') return true;
+		return !extraHazards.some((hazard) => overlapsObstacle(obstacle, hazard, 8));
+	});
+
+	return [...baseObstacles, ...extraObstacles];
+}
+
+function isPoolHazard(obstacle: ObstacleData): boolean {
+	return obstacle.type === 'water' || obstacle.type === 'lava';
+}
+
+function overlapsObstacle(a: ObstacleData, b: ObstacleData, padding = 0): boolean {
+	const aBox = obstacleBox(a, padding);
+	const bBox = obstacleBox(b, padding);
+
+	return aBox.left < bBox.right && aBox.right > bBox.left && aBox.top < bBox.bottom && aBox.bottom > bBox.top;
+}
+
+function obstacleBox(obstacle: ObstacleData, padding: number): { left: number; right: number; top: number; bottom: number } {
+	return {
+		left: obstacle.x - obstacle.width / 2 - padding,
+		right: obstacle.x + obstacle.width / 2 + padding,
+		top: obstacle.y - obstacle.height / 2 - padding,
+		bottom: obstacle.y + obstacle.height / 2 + padding
+	};
+}
+
+export const STATIC_STAGES: StageData[] = STATIC_STAGE_BLUEPRINTS.map(applyStageOverride);
+
 export const FIRST_STAGE_ID = 1;
-export const MAX_STATIC_STAGE_ID = STATIC_STAGES.length;
-export const FALLBACK_STAGE: StageData = {
+export const MAX_STATIC_STAGE_ID = STATIC_STAGE_BLUEPRINTS.length;
+export const MAX_AUTHORED_STAGE_ID = Math.max(
+	MAX_STATIC_STAGE_ID,
+	...Object.keys(STAGE_OVERRIDES).map((stageId) => Number(stageId)).filter(Number.isFinite)
+);
+export const FALLBACK_STAGE: StageData = applyStageOverride({
 	id: 1,
 	dog: { x: 195, y: 530 },
 	hives: [{ x: 195, y: 105, beeCount: 8, spawnIntervalMs: 320 }],
 	obstacles: [ground],
 	inkLimit: PHYSICS.defaultInkLimit,
 	survivalMs: PHYSICS.defaultSurvivalMs,
-	difficultyLabel: 'Tutorial'
-};
+	difficultyLabel: 'Tutorial',
+	objectiveLabel: '강아지 보호',
+	objectiveHint: '벌과 위험 지형을 동시에 막으세요.',
+	dangerLabel: '벌 공격'
+});

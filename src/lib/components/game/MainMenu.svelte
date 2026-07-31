@@ -1,12 +1,14 @@
 <script lang="ts">
   import {
     CheckCircle2,
+    FolderOpen,
     Lock,
     Map,
     Palette,
     Play,
     RotateCcw,
     Settings,
+    SquarePen,
     Star,
     Trophy,
     X,
@@ -32,6 +34,8 @@
     onHapticsChange: (enabled: boolean) => void;
     onMusicChange: (enabled: boolean) => void;
     onSfxChange: (enabled: boolean) => void;
+    onMapCreate: () => void;
+    onMapLibrary: () => void;
   }
 
   let {
@@ -51,6 +55,8 @@
     onHapticsChange,
     onMusicChange,
     onSfxChange,
+    onMapCreate,
+    onMapLibrary,
   }: Props = $props();
 
   let selectedSkin = $derived(
@@ -72,7 +78,19 @@
     if (stage > highestStage) return;
     onStageSelect(stage);
   }
+
+  function closeSettings(): void {
+    showSettings = false;
+  }
+
+  function handleKeydown(event: KeyboardEvent): void {
+    if (event.key !== "Escape") return;
+    if (showSettings) closeSettings();
+    else if (showStageMap) showStageMap = false;
+  }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <section
   class="menu-screen relative flex size-full flex-col overflow-hidden px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.4rem,env(safe-area-inset-top))] text-slate-950"
@@ -176,13 +194,15 @@
   </div>
 
   {#if showSettings}
-    <div
-      class="settings-popover relative z-20"
-      role="dialog"
-      aria-modal="false"
-      aria-label="설정"
-    >
-      <div class="settings-panel">
+    <div class="settings-modal-backdrop">
+      <button
+        class="settings-modal-dismiss"
+        type="button"
+        tabindex="-1"
+        aria-label="설정 닫기"
+        onclick={closeSettings}
+      ></button>
+      <dialog class="settings-panel" open aria-modal="true" aria-label="설정">
         <div class="mb-3 flex items-center justify-between gap-2">
           <div class="flex items-center gap-1 text-sm font-black text-slate-900">
             <Settings class="size-4" />
@@ -192,10 +212,23 @@
             variant="ghost"
             size="icon-sm"
             aria-label="설정 닫기"
-            onclick={() => (showSettings = false)}
+            onclick={closeSettings}
           >
             <X class="size-4" />
           </Button>
+        </div>
+        <div class="settings-map-section" aria-label="사용자 지도">
+          <div class="settings-title">사용자 지도</div>
+          <div class="settings-map-actions">
+            <Button variant="secondary" class="settings-map-button h-10 text-xs font-black" onclick={onMapCreate}>
+              <SquarePen class="size-4" />
+              지도 만들기
+            </Button>
+            <Button variant="secondary" class="settings-map-button h-10 text-xs font-black" onclick={onMapLibrary}>
+              <FolderOpen class="size-4" />
+              지도 불러오기
+            </Button>
+          </div>
         </div>
         <div class="settings-item">
           <div>
@@ -242,7 +275,7 @@
             <span class="haptic-switch" class:haptic-switch-on={hapticsEnabled}></span>
           </button>
         </div>
-      </div>
+      </dialog>
     </div>
   {/if}
 
@@ -442,18 +475,32 @@
     transform: scale(0.94);
   }
 
-  .settings-popover {
+  .settings-modal-backdrop {
     position: absolute;
-    top: calc(max(1.4rem, env(safe-area-inset-top)) + 50px);
-    right: 1rem;
-    left: 1rem;
-    display: flex;
-    justify-content: flex-end;
-    pointer-events: none;
+    z-index: 30;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 1.25rem;
+    background: rgba(2, 6, 23, 0.58);
+    backdrop-filter: blur(3px);
+  }
+
+  .settings-modal-dismiss {
+    position: absolute;
+    inset: 0;
+    border: 0;
+    background: transparent;
+    cursor: default;
   }
 
   .settings-panel {
+    position: relative;
+    z-index: 1;
+    margin: 0;
     width: min(100%, 340px);
+    max-height: calc(100% - 2.5rem);
+    overflow-y: auto;
     border: 1px solid var(--panel-border);
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.93);
@@ -461,7 +508,25 @@
     color: #1e293b;
     box-shadow: 0 18px 36px rgba(15, 23, 42, 0.28);
     backdrop-filter: blur(14px);
-    pointer-events: auto;
+  }
+
+  .settings-map-section {
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+    padding-bottom: 0.8rem;
+  }
+
+  .settings-map-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+    margin-top: 0.45rem;
+  }
+
+  :global(.settings-map-button) {
+    border: 1px solid rgba(30, 64, 96, 0.16);
+    border-radius: 10px;
+    background: #eef7ff;
+    color: #243a54;
   }
 
   .settings-item {

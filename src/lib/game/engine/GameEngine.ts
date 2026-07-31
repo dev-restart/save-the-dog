@@ -7,7 +7,7 @@ import { clamp } from '../geometry.js';
 import type { CanvasSize, GamePhase, Point, SkinId, StageData } from '../types.js';
 import { BeeSystem } from './BeeSystem.js';
 import { CanvasRenderer } from './CanvasRenderer.js';
-import { setupCollisionEvents, type DogHitReason } from './CollisionHandler.js';
+import { setupCollisionEvents, type DogHit } from './CollisionHandler.js';
 import { DrawingSystem } from './DrawingSystem.js';
 import { ObjectFactory } from './ObjectFactory.js';
 import { FixedStepClock } from './GameLoopClock.js';
@@ -57,7 +57,7 @@ export class GameEngine {
 		}
 
 		this.ctx = context;
-		this.renderer = new CanvasRenderer(skin);
+		this.renderer = new CanvasRenderer(skin, stage.environment);
 		this.drawing = new DrawingSystem(stage.inkLimit);
 		this.engine.gravity.y = 0;
 		this.resize();
@@ -140,8 +140,8 @@ export class GameEngine {
 		const obstacles = this.stage.obstacles.map((obstacle) => ObjectFactory.createObstacle(obstacle, this.size));
 
 		Matter.Composite.add(this.world, [...walls, ...obstacles, ...hives, this.dogBody]);
-		this.beeSystem = new BeeSystem(this.stage.hives, this.world, this.size, this.stage.id);
-		this.cleanupCollision = setupCollisionEvents(this.engine, (reason) => this.fail(reason));
+		this.beeSystem = new BeeSystem(this.stage.hives, this.world, this.size, this.stage.id, this.stage.difficulty);
+		this.cleanupCollision = setupCollisionEvents(this.engine, (hit) => this.fail(hit));
 	}
 
 	private renderLoop = (timestamp: number): void => {
@@ -188,12 +188,26 @@ export class GameEngine {
 		this.callbacks.onCleared(score);
 	}
 
-	private fail(reason: DogHitReason): void {
+	private fail(hit: DogHit): void {
 		if (this.phase !== 'simulating') return;
+		if (hit.reason === 'bee' && hit.otherBody.label === 'bee') {
+			// 충돌 콜백은 barrier guard보다 먼저 발생할 수 있다. 먼저 tunnelled bee를 되돌린 뒤
+			// 방어선이 실제로 강아지와 벌 사이에 있는지 판단해야 닫힌 선이 임의로 실패하지 않는다.
+			this.beeSystem?.enforceDrawingBarriers();
+		}
+		if (
+			hit.reason === 'bee' &&
+			hit.otherBody.label === 'bee' &&
+			this.beeSystem?.isDogProtectedFromBee(hit.otherBody, hit.dogBody)
+		) {
+			this.beeSystem.enforceDrawingBarriers();
+			return;
+		}
+
 		this.phase = 'failed';
 		this.engine.gravity.y = 0;
 		this.setBeesActive(false);
-		if (reason === 'bee') this.callbacks.onDogAttacked();
+		if (hit.reason === 'bee') this.callbacks.onDogAttacked();
 		this.callbacks.onPhaseChange(this.phase);
 		this.callbacks.onFailed();
 	}

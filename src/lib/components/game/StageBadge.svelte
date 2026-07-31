@@ -2,7 +2,7 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 
 	interface Props {
-		stage: number;
+		stage: number | string;
 		difficulty?: string;
 	}
 
@@ -33,7 +33,7 @@
 
 <div class="flex items-center gap-1.5">
 	<Badge variant="secondary" class="border border-slate-900/10 bg-white/85 px-2 py-1 text-slate-900 shadow-sm">
-		{stage}단계
+		{typeof stage === 'number' ? `${stage}단계` : stage}
 	</Badge>
 	<span class="max-w-24 truncate text-[11px] font-semibold text-slate-600">{displayDifficulty}</span>
 </div>

@@ -10,11 +10,12 @@
 		stage: number;
 		score: StageScore | null;
 		onNext: () => void;
+		nextLabel?: string;
 		onRetry: () => void;
 		onMenu: () => void;
 	}
 
-	let { phase, stage, score, onNext, onRetry, onMenu }: Props = $props();
+	let { phase, stage, score, onNext, nextLabel = '다음 Stage', onRetry, onMenu }: Props = $props();
 	let visible = $derived(phase === 'cleared' || phase === 'failed');
 	let cleared = $derived(phase === 'cleared');
 </script>
@@ -28,7 +29,7 @@
 				{/if}
 				<h2 class="text-5xl font-black text-white">성공</h2>
 				<div class="flex items-center justify-center gap-3">
-					<Button class="size-14 rounded-full p-0" aria-label="다음 Stage" title="다음 Stage" onclick={onNext}>
+					<Button class="size-14 rounded-full p-0" aria-label={nextLabel} title={nextLabel} onclick={onNext}>
 						<ArrowRight class="size-7" />
 					</Button>
 					<Button variant="secondary" class="size-14 rounded-full bg-white/90 p-0" aria-label="처음 화면" title="처음 화면" onclick={onMenu}>

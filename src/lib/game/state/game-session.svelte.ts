@@ -1,50 +1,14 @@
-import { browser } from '$app/environment';
-import { HAPTIC_STORAGE_KEY, PHYSICS, SKIN_STORAGE_KEY, STORAGE_KEY } from '../constants.js';
-import { loadAudioPreferences, saveAudioPreferences, type AudioPreferences } from '../audio.js';
-import { DEFAULT_SKIN, isSkinId } from '../skins.js';
+import { PHYSICS } from '../constants.js';
+import type { AudioPreferences } from '../audio.js';
+import { DEFAULT_SKIN } from '../skins.js';
 import type { StageScore } from '../scoring.js';
 import type { GamePhase, SkinId, StoredProgress } from '../types.js';
-
-const DEFAULT_PROGRESS: StoredProgress = {
-	highestStage: 1,
-	lastPlayedStage: 1,
-	totalClears: 0,
-	stageStars: {},
-	version: 1
-};
-
-function parseProgress(raw: string | null): StoredProgress {
-	if (!raw) return { ...DEFAULT_PROGRESS };
-
-	try {
-		const parsed = JSON.parse(raw) as Partial<StoredProgress>;
-		if (parsed.version !== 1) return { ...DEFAULT_PROGRESS };
-
-		return {
-			highestStage: Math.max(1, Number(parsed.highestStage) || 1),
-			lastPlayedStage: Math.max(1, Number(parsed.lastPlayedStage) || 1),
-			totalClears: Math.max(0, Number(parsed.totalClears) || 0),
-			stageStars: parseStageStars(parsed.stageStars),
-			version: 1
-		};
-	} catch {
-		return { ...DEFAULT_PROGRESS };
-	}
-}
-
-function parseStageStars(value: unknown): Record<string, number> {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-
-	// 저장된 값이 손상돼도 진행 데이터 전체가 깨지지 않도록 stage id와 0.5 단위 별점만 복구한다.
-	const stars: Record<string, number> = {};
-	for (const [stageId, rawStars] of Object.entries(value)) {
-		const numericStageId = Math.max(1, Number(stageId) || 0);
-		if (!numericStageId) continue;
-		const score = Math.min(3, Math.max(0, Number(rawStars) || 0));
-		stars[String(numericStageId)] = Math.round(score * 2) / 2;
-	}
-	return stars;
-}
+import {
+	GamePersistence,
+	type CustomMapRecord,
+	type GameSettings
+} from './game-persistence.js';
+import type { StageMapDocument } from '../stages/stage-map-schema.js';
 
 export class GameSessionState {
 	currentStage = $state(1);
@@ -58,10 +22,13 @@ export class GameSessionState {
 	stageStars = $state<Record<string, number>>({});
 	currentScore = $state<StageScore | null>(null);
 	hasStarted = $state(false);
+	isCustomStage = $state(false);
 	skin = $state<SkinId>(DEFAULT_SKIN);
 	hapticsEnabled = $state(true);
 	musicEnabled = $state(true);
 	sfxEnabled = $state(true);
+	isLoaded = $state(false);
+	private persistence = new GamePersistence();
 
 	remainingSeconds = $derived(
 		Math.max(0, (this.survivalDurationMs - this.survivalElapsedMs) / 1000)
@@ -71,29 +38,33 @@ export class GameSessionState {
 	totalStars = $derived(Object.values(this.stageStars).reduce((sum, stars) => sum + stars, 0));
 	currentStageBestStars = $derived(this.stageStars[String(this.currentStage)] ?? 0);
 
-	load(): void {
-		if (!browser) return;
-		const progress = parseProgress(localStorage.getItem(STORAGE_KEY));
+	async load(): Promise<void> {
+		const snapshot = await this.persistence.load();
+		const progress = snapshot.progress;
 		this.highestStage = progress.highestStage;
 		this.lastPlayedStage = progress.lastPlayedStage;
 		this.totalClears = progress.totalClears;
 		this.stageStars = progress.stageStars;
 		this.currentStage = progress.lastPlayedStage;
 
-		const savedSkin = localStorage.getItem(SKIN_STORAGE_KEY);
-		this.skin = isSkinId(savedSkin) ? savedSkin : DEFAULT_SKIN;
-		this.hapticsEnabled = localStorage.getItem(HAPTIC_STORAGE_KEY) !== 'off';
-		const audioPreferences = loadAudioPreferences();
-		this.musicEnabled = audioPreferences.musicEnabled;
-		this.sfxEnabled = audioPreferences.sfxEnabled;
+		this.applySettings(snapshot.settings);
+		this.isLoaded = true;
 	}
 
 	start(stageId = 1): void {
 		this.hasStarted = true;
+		this.isCustomStage = false;
 		this.currentStage = Math.max(1, stageId);
 		this.lastPlayedStage = this.currentStage;
 		this.resetRuntime();
 		this.saveProgress();
+	}
+
+	startCustom(stageId: number): void {
+		this.hasStarted = true;
+		this.isCustomStage = true;
+		this.currentStage = Math.max(1, stageId);
+		this.resetRuntime();
 	}
 
 	continue(): void {
@@ -115,7 +86,8 @@ export class GameSessionState {
 	returnToMenu(): void {
 		this.hasStarted = false;
 		this.phase = 'ready';
-		this.saveProgress();
+		if (!this.isCustomStage) this.saveProgress();
+		this.isCustomStage = false;
 	}
 
 	setPhase(phase: GamePhase): void {
@@ -136,22 +108,22 @@ export class GameSessionState {
 
 	setSkin(skin: SkinId): void {
 		this.skin = skin;
-		if (browser) localStorage.setItem(SKIN_STORAGE_KEY, skin);
+		this.saveSettings();
 	}
 
 	setHapticsEnabled(enabled: boolean): void {
 		this.hapticsEnabled = enabled;
-		if (browser) localStorage.setItem(HAPTIC_STORAGE_KEY, enabled ? 'on' : 'off');
+		this.saveSettings();
 	}
 
 	setMusicEnabled(enabled: boolean): void {
 		this.musicEnabled = enabled;
-		this.saveAudioPreferences();
+		this.saveSettings();
 	}
 
 	setSfxEnabled(enabled: boolean): void {
 		this.sfxEnabled = enabled;
-		this.saveAudioPreferences();
+		this.saveSettings();
 	}
 
 	getAudioPreferences(): AudioPreferences {
@@ -161,21 +133,47 @@ export class GameSessionState {
 		};
 	}
 
-	markCleared(score: StageScore): void {
+	markCleared(score: StageScore, hintViews = 0): void {
 		this.phase = 'cleared';
 		this.currentScore = score;
-		this.totalClears += 1;
-		this.highestStage = Math.max(this.highestStage, this.currentStage + 1);
-		this.stageStars = {
-			...this.stageStars,
-			[String(this.currentStage)]: Math.max(this.currentStageBestStars, score.stars)
-		};
-		this.lastPlayedStage = this.currentStage + 1;
-		this.saveProgress();
+		if (!this.isCustomStage) {
+			this.totalClears += 1;
+			this.highestStage = Math.max(this.highestStage, this.currentStage + 1);
+			this.stageStars = {
+				...this.stageStars,
+				[String(this.currentStage)]: Math.max(this.currentStageBestStars, score.stars)
+			};
+			this.lastPlayedStage = this.currentStage + 1;
+			this.saveProgress();
+		}
+		void this.persistence.recordStageResult({
+			stageId: this.currentStage,
+			status: 'cleared',
+			hintViews,
+			score,
+			clearTimeMs: this.survivalElapsedMs
+		}).catch(() => undefined);
 	}
 
-	markFailed(): void {
+	markFailed(hintViews = 0): void {
 		this.phase = 'failed';
+		void this.persistence.recordStageResult({
+			stageId: this.currentStage,
+			status: 'failed',
+			hintViews
+		}).catch(() => undefined);
+	}
+
+	saveCustomMap(document: StageMapDocument, id?: string): Promise<CustomMapRecord> {
+		return this.persistence.saveCustomMap(document, id);
+	}
+
+	listCustomMaps(): Promise<CustomMapRecord[]> {
+		return this.persistence.listCustomMaps();
+	}
+
+	deleteCustomMap(id: string): Promise<void> {
+		return this.persistence.deleteCustomMap(id);
 	}
 
 	private resetRuntime(): void {
@@ -185,13 +183,24 @@ export class GameSessionState {
 		this.currentScore = null;
 	}
 
-	private saveAudioPreferences(): void {
-		saveAudioPreferences(this.getAudioPreferences());
+	private applySettings(settings: GameSettings): void {
+		this.skin = settings.skin ?? DEFAULT_SKIN;
+		this.hapticsEnabled = settings.hapticsEnabled;
+		this.musicEnabled = settings.musicEnabled;
+		this.sfxEnabled = settings.sfxEnabled;
+	}
+
+	private saveSettings(): void {
+		const settings: GameSettings = {
+			skin: this.skin,
+			hapticsEnabled: this.hapticsEnabled,
+			musicEnabled: this.musicEnabled,
+			sfxEnabled: this.sfxEnabled
+		};
+		void this.persistence.saveSettings(settings).catch(() => undefined);
 	}
 
 	private saveProgress(): void {
-		if (!browser) return;
-
 		const progress: StoredProgress = {
 			highestStage: Math.max(this.highestStage, this.currentStage),
 			lastPlayedStage: Math.max(1, this.lastPlayedStage),
@@ -200,8 +209,8 @@ export class GameSessionState {
 			version: 1
 		};
 
-		localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
 		this.highestStage = progress.highestStage;
 		this.lastPlayedStage = progress.lastPlayedStage;
+		void this.persistence.saveProgress(progress).catch(() => undefined);
 	}
 }

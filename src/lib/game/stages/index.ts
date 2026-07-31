@@ -1,13 +1,25 @@
 import { generateStage } from './generate-stage.js';
-import { FALLBACK_STAGE, MAX_STATIC_STAGE_ID, STATIC_STAGES } from './static-stages.js';
+import {
+	applyStageOverride,
+	FALLBACK_STAGE,
+	MAX_AUTHORED_STAGE_ID,
+	MAX_STATIC_STAGE_ID,
+	STATIC_STAGE_BLUEPRINTS
+} from './static-stages.js';
+import { applyStageDifficulty } from './difficulty-config.js';
 import type { StageData } from '../types.js';
 
 export function getStage(stageId: number): StageData {
 	if (stageId <= MAX_STATIC_STAGE_ID) {
-		return tuneStaticStage(STATIC_STAGES.find((stage) => stage.id === stageId) ?? FALLBACK_STAGE);
+		const stage = STATIC_STAGE_BLUEPRINTS.find((item) => item.id === stageId) ?? FALLBACK_STAGE;
+		return applyStageDifficulty(applyStageOverride(tuneStaticStage(stage)));
 	}
 
-	return generateStage(stageId);
+	if (stageId <= MAX_AUTHORED_STAGE_ID) {
+		return applyStageDifficulty(applyStageOverride(generateStage(stageId)));
+	}
+
+	return applyStageDifficulty(generateStage(stageId));
 }
 
 function tuneStaticStage(stage: StageData): StageData {

@@ -3,6 +3,11 @@ import { COLLISION_CATEGORY, PHYSICS } from '../constants.js';
 import { distance, scaleLengthX, scaleLengthY, scalePoint } from '../geometry.js';
 import type { CanvasSize, ObstacleData, Point } from '../types.js';
 
+export interface DrawingBodyPlugin {
+	drawingPath?: Point[];
+	drawingThickness?: number;
+}
+
 function bodyOptions(label: string, category: number, mask: number) {
 	return {
 		label,
@@ -22,7 +27,8 @@ export class ObjectFactory {
 					COLLISION_CATEGORY.spike |
 					COLLISION_CATEGORY.deadzone |
 					COLLISION_CATEGORY.bee |
-					COLLISION_CATEGORY.wall
+					COLLISION_CATEGORY.wall |
+					COLLISION_CATEGORY.hazard
 			),
 			friction: 0.5,
 			restitution: 0.18,
@@ -57,25 +63,50 @@ export class ObjectFactory {
 		const pos = scalePoint({ x: obstacle.x, y: obstacle.y }, size);
 		const width = scaleLengthX(obstacle.width, size);
 		const height = scaleLengthY(obstacle.height, size);
-		const label = obstacle.type === 'platform' ? 'platform' : obstacle.type;
+		const label = obstacle.type === 'platform' ? 'platform' : obstacle.type === 'wall' ? 'brick' : obstacle.type;
+		const isSensorHazard =
+			obstacle.type === 'spike' ||
+			obstacle.type === 'water' ||
+			obstacle.type === 'lava' ||
+			obstacle.type === 'bomb' ||
+			obstacle.type === 'acid';
+		const isRollingBoulder = obstacle.type === 'rolling-boulder';
 		const category =
 			obstacle.type === 'spike'
 				? COLLISION_CATEGORY.spike
-				: obstacle.type === 'wall'
-					? COLLISION_CATEGORY.wall
-					: COLLISION_CATEGORY.ground;
+				: obstacle.type === 'water' || obstacle.type === 'lava' || obstacle.type === 'bomb' || obstacle.type === 'acid' || isRollingBoulder
+					? COLLISION_CATEGORY.hazard
+					: obstacle.type === 'wall'
+						? COLLISION_CATEGORY.wall
+						: COLLISION_CATEGORY.ground;
 
 		const mask =
-			obstacle.type === 'spike'
+			isSensorHazard
 				? COLLISION_CATEGORY.dog
+				: isRollingBoulder
+					? COLLISION_CATEGORY.dog |
+						COLLISION_CATEGORY.bee |
+						COLLISION_CATEGORY.drawing |
+						COLLISION_CATEGORY.ground |
+						COLLISION_CATEGORY.wall
 				: COLLISION_CATEGORY.dog | COLLISION_CATEGORY.bee | COLLISION_CATEGORY.drawing;
 
 		const body = Matter.Bodies.rectangle(pos.x, pos.y, width, height, {
 			...bodyOptions(label, category, mask),
-			isStatic: true,
-			isSensor: obstacle.type === 'spike',
-			angle: obstacle.angle ?? 0
+			isStatic: !isRollingBoulder,
+			isSensor: isSensorHazard,
+			angle: obstacle.angle ?? 0,
+			friction: obstacle.type === 'ice' ? 0.03 : isRollingBoulder ? 0.5 : obstacle.type === 'stone' ? 0.9 : 0.72,
+			frictionStatic: obstacle.type === 'ice' ? 0.04 : isRollingBoulder ? 0.65 : 0.9,
+			restitution: isRollingBoulder ? 0.08 : 0,
+			density: isRollingBoulder ? 0.012 : undefined
 		});
+
+		// Matter.js는 정적 body를 만들 때 마찰을 1로 덮어쓴다. 얼음은 생성 뒤 값을 복원해야 실제로 미끄럽다.
+		if (obstacle.type === 'ice') {
+			body.friction = 0.03;
+			body.frictionStatic = 0.04;
+		}
 
 		return body;
 	}
@@ -111,8 +142,8 @@ export class ObjectFactory {
 		const lastPoint = points.at(-1);
 		if (lastPoint && sampled.at(-1) !== lastPoint) sampled.push(lastPoint);
 
-		// 플레이어가 그린 잉크는 고정 벽이 아니라 실제 물리 블록이다.
-		// 시뮬레이션 시작 전에는 중력이 0이라 제자리에 보이고, 시작 후에는 중력/충돌/벌 압박에 따라 떨어진다.
+		// 잉크는 하나의 강체로 모양을 보존하지만, 실제 Save the Dog처럼 중력과 지형 충돌을 받는다.
+		// 따라서 원형을 공중에 만들면 떨어지거나 굴러가고, 벽/발판에 걸쳐 그려야 안정적이다.
 		const drawingBodyOptions = {
 			...bodyOptions(
 				'drawing',
@@ -121,7 +152,7 @@ export class ObjectFactory {
 			),
 			friction: 0.82,
 			frictionStatic: 0.92,
-			frictionAir: 0.018,
+			frictionAir: 0.006,
 			restitution: 0.04,
 			density: 0.012
 		} satisfies Matter.IChamferableBodyDefinition;
@@ -160,6 +191,14 @@ export class ObjectFactory {
 			...drawingBodyOptions,
 			parts
 		});
+		compound.plugin = {
+			...(compound.plugin as object),
+			drawingPath: sampled.map((point) => ({
+				x: point.x - compound.position.x,
+				y: point.y - compound.position.y
+			})),
+			drawingThickness: PHYSICS.drawingThickness
+		} satisfies DrawingBodyPlugin;
 
 		return [compound];
 	}

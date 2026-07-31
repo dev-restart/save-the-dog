@@ -1,0 +1,715 @@
+{
+	"1": {
+		"designType": "basic-cover",
+		"dog": { "x": 195, "y": 570 },
+		"hives": [{ "x": 195, "y": 110, "beeCount": 8, "spawnIntervalMs": 320, "beeForce": 0.0018, "attackStyle": "direct" }],
+		"obstacles": [{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 }],
+		"inkLimit": 620,
+		"survivalMs": 3000,
+		"difficultyLabel": "Tutorial",
+		"objectiveLabel": "돔으로 벌 막기",
+		"objectiveHint": "강아지 위에 지붕을 그리고 양쪽 끝을 바닥에 닿게 하세요.",
+		"dangerLabel": "벌 직선 공격",
+		"designerNote": "한 번의 선으로 덮개를 만드는 기본 규칙만 학습하는 단계입니다."
+	},
+	"2": {
+		"designType": "bridge-gap",
+		"dog": { "x": 102, "y": 510 },
+		"hives": [{ "x": 315, "y": 115, "beeCount": 11, "spawnIntervalMs": 285, "beeForce": 0.0019, "attackStyle": "direct" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 102, "y": 545, "width": 116, "height": 16 },
+			{ "type": "brick", "x": 36, "y": 575, "width": 40, "height": 150 },
+			{ "type": "brick", "x": 352, "y": 570, "width": 36, "height": 120 },
+			{ "type": "water", "x": 255, "y": 632, "width": 188, "height": 36 },
+			{ "type": "wood", "x": 280, "y": 552, "width": 92, "height": 16, "angle": -0.16 }
+		],
+		"inkLimit": 590,
+		"survivalMs": 5000,
+		"difficultyLabel": "Gap",
+		"objectiveLabel": "틈 위에 가로막기",
+		"objectiveHint": "왼쪽 벽과 작은 발판 사이에 짧은 지붕을 걸어 오른쪽 물길을 피하세요.",
+		"dangerLabel": "물웅덩이 + 오른쪽 진입",
+		"designerNote": "감싸기보다 지형 두 점에 선을 걸어 안전한 작은 방을 만드는 단계입니다."
+	},
+	"3": {
+		"designType": "fall-catch",
+		"dog": { "x": 195, "y": 255 },
+		"hives": [{ "x": 302, "y": 100, "beeCount": 12, "spawnIntervalMs": 280, "beeForce": 0.00195, "attackStyle": "flank-left" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "water", "x": 195, "y": 632, "width": 238, "height": 36 },
+			{ "type": "wood", "x": 80, "y": 558, "width": 96, "height": 16, "angle": 0.08 },
+			{ "type": "wood", "x": 310, "y": 558, "width": 96, "height": 16, "angle": -0.08 },
+			{ "type": "brick", "x": 35, "y": 570, "width": 36, "height": 120 },
+			{ "type": "brick", "x": 355, "y": 570, "width": 36, "height": 120 }
+		],
+		"inkLimit": 555,
+		"survivalMs": 5000,
+		"difficultyLabel": "Fall Catch",
+		"objectiveLabel": "떨어지기 전 받침",
+		"objectiveHint": "강아지 아래에 먼저 받침을 만든 뒤, 오른쪽에서 돌아오는 벌을 막는 덮개를 이어 그리세요.",
+		"dangerLabel": "낙하 + 물웅덩이",
+		"designerNote": "강아지가 공중에서 시작합니다. 닫힌 원보다 받침과 지붕을 이어 그리는 공략이 필요합니다."
+	},
+	"4": {
+		"designType": "anchor-wall",
+		"environment": "volcanic",
+		"dog": { "x": 195, "y": 505 },
+		"hives": [{ "x": 64, "y": 105, "beeCount": 13, "spawnIntervalMs": 260, "beeForce": 0.002, "attackStyle": "flank-right" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 195, "y": 540, "width": 88, "height": 16 },
+			{ "type": "lava", "x": 195, "y": 632, "width": 242, "height": 36 },
+			{ "type": "brick", "x": 68, "y": 570, "width": 42, "height": 120 },
+			{ "type": "brick", "x": 322, "y": 570, "width": 42, "height": 120 },
+			{ "type": "wood", "x": 112, "y": 498, "width": 74, "height": 16, "angle": 0.14 },
+			{ "type": "wood", "x": 278, "y": 498, "width": 74, "height": 16, "angle": -0.14 }
+		],
+		"inkLimit": 455,
+		"survivalMs": 5100,
+		"difficultyLabel": "Anchor",
+		"objectiveLabel": "양쪽 벽에 고정",
+		"objectiveHint": "낮은 나무 발판 위를 덮고 양쪽 벽에 끝을 걸어, 용암 위로 떨어지지 않게 만드세요.",
+		"dangerLabel": "용암 + 측면 벌",
+		"designerNote": "고정된 방어선을 벽과 발판에 연결하는 앵커 구조를 요구합니다."
+	},
+	"5": {
+		"designType": "terrain-pocket",
+		"environment": "volcanic",
+		"dog": { "x": 102, "y": 470 },
+		"hives": [{ "x": 310, "y": 92, "beeCount": 15, "spawnIntervalMs": 240, "beeForce": 0.002, "attackStyle": "flank-left" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 105, "y": 510, "width": 104, "height": 16 },
+			{ "type": "brick", "x": 206, "y": 510, "width": 32, "height": 190 },
+			{ "type": "brick", "x": 352, "y": 568, "width": 36, "height": 124 },
+			{ "type": "water", "x": 76, "y": 632, "width": 96, "height": 36 },
+			{ "type": "lava", "x": 286, "y": 632, "width": 166, "height": 36 },
+			{ "type": "wood", "x": 284, "y": 475, "width": 102, "height": 16, "angle": -0.12 },
+			{ "type": "boulder", "x": 153, "y": 620, "width": 60, "height": 60 }
+		],
+		"inkLimit": 520,
+		"survivalMs": 5200,
+		"difficultyLabel": "Pocket",
+		"objectiveLabel": "기둥 옆 통로 봉쇄",
+		"objectiveHint": "중앙 벽 왼쪽 포켓을 덮고, 벌이 기둥 위로 우회하지 못하게 끝을 발판에 닿게 하세요.",
+		"dangerLabel": "우회 벌 + 양쪽 함정",
+		"designerNote": "기둥과 바위는 선을 걸 수 있는 지지점입니다. 벌의 우회 경로와 하단 함정을 함께 고려하게 합니다."
+	},
+	"6": {
+		"designType": "slope-slide",
+		"dog": { "x": 300, "y": 395 },
+		"hives": [{ "x": 72, "y": 105, "beeCount": 16, "spawnIntervalMs": 230, "beeForce": 0.00205, "attackStyle": "flank-right" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 300, "y": 435, "width": 112, "height": 16, "angle": -0.2 },
+			{ "type": "wood", "x": 185, "y": 520, "width": 112, "height": 16, "angle": 0.16 },
+			{ "type": "brick", "x": 350, "y": 530, "width": 34, "height": 185 },
+			{ "type": "water", "x": 292, "y": 632, "width": 160, "height": 36 },
+			{ "type": "spike", "x": 110, "y": 638, "width": 98, "height": 24 },
+			{ "type": "platform", "x": 80, "y": 560, "width": 82, "height": 16, "angle": 0.1 }
+		],
+		"inkLimit": 500,
+		"survivalMs": 5200,
+		"difficultyLabel": "Slope",
+		"objectiveLabel": "경사에서 미끄럼 막기",
+		"objectiveHint": "강아지 위쪽 경사를 덮되, 오른쪽 벽까지 닿는 짧은 고리로 미끄럼을 막으세요.",
+		"dangerLabel": "경사 + 물 + 가시",
+		"designerNote": "선의 모양은 유지되지만 시작점과 끝점을 지형에 맞추지 않으면 강아지가 경사를 타고 함정으로 갑니다."
+	},
+	"7": {
+		"designType": "split-hive",
+		"dog": { "x": 195, "y": 495 },
+		"hives": [
+			{ "x": 58, "y": 105, "beeCount": 10, "spawnIntervalMs": 220, "beeForce": 0.00205, "attackStyle": "flank-left" },
+			{ "x": 332, "y": 120, "beeCount": 10, "spawnIntervalMs": 225, "beeForce": 0.00205, "attackStyle": "flank-right" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 195, "y": 530, "width": 110, "height": 16 },
+			{ "type": "brick", "x": 82, "y": 555, "width": 36, "height": 150 },
+			{ "type": "brick", "x": 308, "y": 555, "width": 36, "height": 150 },
+			{ "type": "water", "x": 74, "y": 632, "width": 96, "height": 36 },
+			{ "type": "water", "x": 316, "y": 632, "width": 96, "height": 36 },
+			{ "type": "spike", "x": 195, "y": 638, "width": 84, "height": 24 }
+		],
+		"inkLimit": 500,
+		"survivalMs": 5350,
+		"difficultyLabel": "Two Hives",
+		"objectiveLabel": "양쪽 벌집을 분리",
+		"objectiveHint": "두 벌집은 서로 반대 측면을 노립니다. 중앙 발판 위에 양쪽 모서리가 닫힌 지붕을 만드세요.",
+		"dangerLabel": "협동 측면 공격",
+		"designerNote": "벌집마다 left/right 역할을 지정해, 한 방향만 막는 선으로는 안전하지 않은 첫 복수 벌집 단계입니다."
+	},
+	"8": {
+		"designType": "anchor-wall",
+		"environment": "volcanic",
+		"dog": { "x": 95, "y": 360 },
+		"hives": [{ "x": 315, "y": 92, "beeCount": 19, "spawnIntervalMs": 215, "beeForce": 0.0021, "attackStyle": "breaker" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 95, "y": 400, "width": 104, "height": 16 },
+			{ "type": "wood", "x": 245, "y": 505, "width": 100, "height": 16, "angle": -0.14 },
+			{ "type": "brick", "x": 354, "y": 455, "width": 36, "height": 240 },
+			{ "type": "brick", "x": 44, "y": 550, "width": 34, "height": 150 },
+			{ "type": "water", "x": 104, "y": 632, "width": 164, "height": 36 },
+			{ "type": "lava", "x": 304, "y": 632, "width": 92, "height": 36 },
+			{ "type": "bomb", "x": 294, "y": 570, "width": 40, "height": 40 }
+		],
+		"inkLimit": 460,
+		"survivalMs": 5400,
+		"difficultyLabel": "Wall Anchor",
+		"objectiveLabel": "벽에 기대기",
+		"objectiveHint": "오른쪽 긴 벽과 낮은 발판을 연결한 덮개를 그려, 아래 물길과 용암을 동시에 피하세요.",
+		"dangerLabel": "벽 우회 + 낙하 + 폭탄",
+		"designerNote": "breaker 역할의 벌은 방어선 가까운 지점을 압박합니다. 선은 강체로 형태를 유지하지만 중력과 충돌에는 반응합니다."
+	},
+	"9": {
+		"designType": "terrain-pocket",
+		"dog": { "x": 285, "y": 430 },
+		"hives": [{ "x": 76, "y": 95, "beeCount": 19, "spawnIntervalMs": 210, "beeForce": 0.0021, "attackStyle": "flank-right" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 285, "y": 470, "width": 112, "height": 16 },
+			{ "type": "brick", "x": 220, "y": 505, "width": 34, "height": 182 },
+			{ "type": "brick", "x": 350, "y": 560, "width": 36, "height": 136 },
+			{ "type": "wood", "x": 118, "y": 530, "width": 106, "height": 16, "angle": 0.12 },
+			{ "type": "water", "x": 96, "y": 632, "width": 136, "height": 36 },
+			{ "type": "spike", "x": 262, "y": 638, "width": 92, "height": 24 }
+		],
+		"inkLimit": 455,
+		"survivalMs": 5450,
+		"difficultyLabel": "Side Pocket",
+		"objectiveLabel": "포켓 입구 닫기",
+		"objectiveHint": "중앙 기둥과 오른쪽 벽 사이의 포켓을 짧게 닫아, 왼쪽 측면 벌이 안쪽으로 파고들지 못하게 하세요.",
+		"dangerLabel": "측면 우회 + 가시",
+		"designerNote": "지형이 이미 세 면을 막아 주므로 긴 원보다 포켓의 열린 한 면을 찾는 것이 핵심입니다."
+	},
+	"10": {
+		"designType": "pressure-cage",
+		"environment": "volcanic",
+		"dog": { "x": 195, "y": 295 },
+		"hives": [
+			{ "x": 78, "y": 100, "beeCount": 11, "spawnIntervalMs": 205, "beeForce": 0.00215, "attackStyle": "flank-left" },
+			{ "x": 312, "y": 100, "beeCount": 11, "spawnIntervalMs": 205, "beeForce": 0.00215, "attackStyle": "breaker" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 195, "y": 335, "width": 104, "height": 16 },
+			{ "type": "brick", "x": 72, "y": 520, "width": 36, "height": 220 },
+			{ "type": "brick", "x": 318, "y": 520, "width": 36, "height": 220 },
+			{ "type": "wood", "x": 116, "y": 470, "width": 88, "height": 16, "angle": 0.14 },
+			{ "type": "wood", "x": 274, "y": 470, "width": 88, "height": 16, "angle": -0.14 },
+			{ "type": "lava", "x": 195, "y": 632, "width": 234, "height": 36 }
+		],
+		"inkLimit": 440,
+		"survivalMs": 5600,
+		"difficultyLabel": "Pressure Cage",
+		"objectiveLabel": "위쪽 덮개와 하단 받침",
+		"objectiveHint": "공중 발판 위의 강아지 아래를 받치고, 양쪽 벽을 잇는 덮개로 협동 벌의 진입각을 나누세요.",
+		"dangerLabel": "복수 벌집 + 용암",
+		"designerNote": "선은 깨지지 않지만, 고정할 지형을 잘못 고르면 벌의 여러 진입각을 모두 막을 수 없습니다."
+	},
+	"11": {
+		"designType": "bridge-gap",
+		"environment": "volcanic",
+		"dog": { "x": 76, "y": 495 },
+		"hives": [{ "x": 332, "y": 104, "beeCount": 20, "spawnIntervalMs": 200, "beeForce": 0.00215, "attackStyle": "direct" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 76, "y": 535, "width": 110, "height": 16 },
+			{ "type": "brick", "x": 194, "y": 475, "width": 34, "height": 205 },
+			{ "type": "wood", "x": 302, "y": 530, "width": 100, "height": 16, "angle": -0.1 },
+			{ "type": "water", "x": 195, "y": 632, "width": 154, "height": 36 },
+			{ "type": "lava", "x": 332, "y": 632, "width": 70, "height": 36 },
+			{ "type": "brick", "x": 38, "y": 572, "width": 34, "height": 124 },
+			{ "type": "crate", "x": 302, "y": 496, "width": 52, "height": 52 }
+		],
+		"inkLimit": 435,
+		"survivalMs": 5650,
+		"difficultyLabel": "Bridge Lock",
+		"objectiveLabel": "물길 위 통로 막기",
+		"objectiveHint": "중앙 기둥과 왼쪽 발판 사이의 틈을 덮어, 물길로 밀리지 않는 작은 방을 만드세요.",
+		"dangerLabel": "좁은 통로 + 물 + 상자",
+		"designerNote": "상자는 짧은 선을 걸 수 있는 지지점입니다. 지형으로 이미 가려진 면을 활용하면 적은 잉크로도 완성됩니다."
+	},
+	"12": {
+		"designType": "trap-basin",
+		"environment": "volcanic",
+		"dog": { "x": 314, "y": 470 },
+		"hives": [
+			{ "x": 62, "y": 108, "beeCount": 12, "spawnIntervalMs": 195, "beeForce": 0.0022, "attackStyle": "flank-left" },
+			{ "x": 276, "y": 100, "beeCount": 10, "spawnIntervalMs": 215, "beeForce": 0.0022, "attackStyle": "flank-right" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 314, "y": 510, "width": 108, "height": 16 },
+			{ "type": "brick", "x": 350, "y": 532, "width": 34, "height": 184 },
+			{ "type": "wood", "x": 210, "y": 500, "width": 92, "height": 16, "angle": 0.18 },
+			{ "type": "lava", "x": 118, "y": 632, "width": 142, "height": 36 },
+			{ "type": "water", "x": 282, "y": 632, "width": 112, "height": 36 }
+		],
+		"inkLimit": 420,
+		"survivalMs": 5750,
+		"difficultyLabel": "Basin",
+		"objectiveLabel": "함정 위 이중 보호",
+		"objectiveHint": "오른쪽 벽에 기대는 덮개와 발판 아래 받침을 한 선으로 이어, 물과 용암 사이로 떨어지지 않게 하세요.",
+		"dangerLabel": "분산 벌 + 양쪽 함정",
+		"designerNote": "벌의 진입각과 강아지 낙하 방향이 서로 달라, 원형보다 L자형 보호선이 유리한 단계입니다."
+	},
+	"13": {
+		"designType": "slope-slide",
+		"environment": "volcanic",
+		"dog": { "x": 195, "y": 435 },
+		"hives": [
+			{ "x": 58, "y": 92, "beeCount": 12, "spawnIntervalMs": 190, "beeForce": 0.0022, "attackStyle": "flank-left" },
+			{ "x": 332, "y": 92, "beeCount": 12, "spawnIntervalMs": 190, "beeForce": 0.0022, "attackStyle": "flank-right" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 195, "y": 475, "width": 112, "height": 16 },
+			{ "type": "brick", "x": 195, "y": 290, "width": 168, "height": 24, "angle": -0.2 },
+			{ "type": "wood", "x": 90, "y": 540, "width": 102, "height": 16, "angle": 0.15 },
+			{ "type": "wood", "x": 300, "y": 540, "width": 102, "height": 16, "angle": -0.15 },
+			{ "type": "lava", "x": 195, "y": 632, "width": 186, "height": 36 },
+			{ "type": "water", "x": 52, "y": 632, "width": 54, "height": 36 },
+			{ "type": "water", "x": 338, "y": 632, "width": 54, "height": 36 }
+		],
+		"inkLimit": 410,
+		"survivalMs": 5800,
+		"difficultyLabel": "Sloped Roof",
+		"objectiveLabel": "기울어진 지붕 고정",
+		"objectiveHint": "상단 경사와 양쪽 낮은 발판을 이용해, 양쪽 벌을 튕겨 내는 기울어진 덮개를 만드세요.",
+		"dangerLabel": "양측 공격 + 용암",
+		"designerNote": "상단 구조는 출발점, 양쪽 발판은 끝점을 잡아 주는 시각적 힌트입니다."
+	},
+	"14": {
+		"designType": "fall-catch",
+		"environment": "volcanic",
+		"dog": { "x": 108, "y": 285 },
+		"hives": [{ "x": 300, "y": 84, "beeCount": 23, "spawnIntervalMs": 185, "beeForce": 0.00225, "attackStyle": "breaker" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "water", "x": 112, "y": 632, "width": 148, "height": 36 },
+			{ "type": "lava", "x": 298, "y": 632, "width": 118, "height": 36 },
+			{ "type": "brick", "x": 42, "y": 535, "width": 34, "height": 190 },
+			{ "type": "brick", "x": 240, "y": 520, "width": 34, "height": 210 },
+			{ "type": "wood", "x": 174, "y": 542, "width": 114, "height": 16, "angle": 0.1 },
+			{ "type": "wood", "x": 320, "y": 505, "width": 82, "height": 16, "angle": -0.18 },
+			{ "type": "bomb", "x": 320, "y": 470, "width": 40, "height": 40 }
+		],
+		"inkLimit": 400,
+		"survivalMs": 5900,
+		"difficultyLabel": "Falling Gate",
+		"objectiveLabel": "공중에서 받침 만들기",
+		"objectiveHint": "공중의 강아지 아래에서 중앙 기둥까지 선을 내리고, 위쪽을 덮어 낙하와 벌을 함께 막으세요.",
+		"dangerLabel": "낙하 + breaker 벌 + 폭탄",
+		"designerNote": "낙하를 막는 선이 그대로 측면 차단벽도 되도록 설계한 복합 공략입니다."
+	},
+	"15": {
+		"designType": "slope-slide",
+		"environment": "volcanic",
+		"dog": { "x": 280, "y": 300 },
+		"hives": [{ "x": 70, "y": 84, "beeCount": 23, "spawnIntervalMs": 185, "beeForce": 0.00225, "attackStyle": "flank-right" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 280, "y": 340, "width": 102, "height": 16, "angle": -0.18 },
+			{ "type": "brick", "x": 42, "y": 520, "width": 34, "height": 210 },
+			{ "type": "brick", "x": 290, "y": 505, "width": 34, "height": 220 },
+			{ "type": "wood", "x": 110, "y": 520, "width": 106, "height": 16, "angle": 0.16 },
+			{ "type": "water", "x": 86, "y": 632, "width": 120, "height": 36 },
+			{ "type": "spike", "x": 250, "y": 638, "width": 86, "height": 24 },
+			{ "type": "lava", "x": 348, "y": 632, "width": 52, "height": 36 }
+		],
+		"inkLimit": 390,
+		"survivalMs": 6000,
+		"difficultyLabel": "Mirror Slide",
+		"objectiveLabel": "반대 경사 잠그기",
+		"objectiveHint": "오른쪽 경사 위 강아지를 중앙 기둥에 연결해, 왼쪽에서 오는 벌과 아래 가시를 동시에 피하세요.",
+		"dangerLabel": "고속 측면 벌 + 가시",
+		"designerNote": "14단계의 낙하 논리를 반대 방향 경사와 좁은 잉크 제한으로 변형한 단계입니다."
+	},
+	"16": {
+		"designType": "hive-box",
+		"environment": "volcanic",
+		"dog": { "x": 195, "y": 495 },
+		"hives": [
+			{ "x": 68, "y": 100, "beeCount": 13, "spawnIntervalMs": 180, "beeForce": 0.0023, "attackStyle": "flank-left" },
+			{ "x": 322, "y": 100, "beeCount": 13, "spawnIntervalMs": 180, "beeForce": 0.0023, "attackStyle": "flank-right" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 195, "y": 530, "width": 106, "height": 16 },
+			{ "type": "brick", "x": 112, "y": 470, "width": 34, "height": 180 },
+			{ "type": "brick", "x": 278, "y": 470, "width": 34, "height": 180 },
+			{ "type": "water", "x": 70, "y": 632, "width": 88, "height": 36 },
+			{ "type": "lava", "x": 195, "y": 632, "width": 126, "height": 36 },
+			{ "type": "water", "x": 320, "y": 632, "width": 88, "height": 36 },
+			{ "type": "wood", "x": 195, "y": 388, "width": 112, "height": 16 }
+		],
+		"inkLimit": 375,
+		"survivalMs": 6100,
+		"difficultyLabel": "Hive Box",
+		"objectiveLabel": "감옥형 지지대",
+		"objectiveHint": "양쪽 기둥 사이에서 아래 받침과 위 덮개를 한 번에 이어, 벌이 위와 옆으로 새지 않게 하세요.",
+		"dangerLabel": "양쪽 벌집 + 세 갈래 함정",
+		"designerNote": "지형으로 만든 상자 안에 강아지를 두되, 완전히 닫힌 원보다 구조물에 연결되는 안정적인 선을 유도합니다."
+	},
+	"17": {
+		"designType": "slope-slide",
+		"environment": "volcanic",
+		"dog": { "x": 84, "y": 285 },
+		"hives": [{ "x": 330, "y": 85, "beeCount": 25, "spawnIntervalMs": 175, "beeForce": 0.00235, "attackStyle": "flank-left" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 84, "y": 325, "width": 94, "height": 16, "angle": 0.12 },
+			{ "type": "wood", "x": 190, "y": 425, "width": 92, "height": 16, "angle": 0.18 },
+			{ "type": "wood", "x": 302, "y": 525, "width": 98, "height": 16, "angle": 0.12 },
+			{ "type": "brick", "x": 44, "y": 535, "width": 34, "height": 190 },
+			{ "type": "water", "x": 78, "y": 632, "width": 102, "height": 36 },
+			{ "type": "spike", "x": 232, "y": 638, "width": 116, "height": 24 },
+			{ "type": "lava", "x": 350, "y": 632, "width": 46, "height": 36 },
+			{ "type": "boulder", "x": 280, "y": 580, "width": 54, "height": 54 }
+		],
+		"inkLimit": 365,
+		"survivalMs": 6200,
+		"difficultyLabel": "Stair Drop",
+		"objectiveLabel": "계단형 낙하 방지",
+		"objectiveHint": "왼쪽 상단에서 시작해 계단 발판에 걸치는 선을 만들고, 중앙 가시 위로 미끄러지지 않게 덮으세요.",
+		"dangerLabel": "계단 + 가시 + 물 + 바위",
+		"designerNote": "선의 끝이 비어 있으면 낙하 방지선이지만, 계단 두 점을 잇으면 벌 차단벽까지 겸합니다."
+	},
+	"18": {
+		"designType": "slope-slide",
+		"environment": "volcanic",
+		"dog": { "x": 306, "y": 285 },
+		"hives": [{ "x": 60, "y": 85, "beeCount": 25, "spawnIntervalMs": 175, "beeForce": 0.00235, "attackStyle": "flank-right" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 306, "y": 325, "width": 94, "height": 16, "angle": -0.12 },
+			{ "type": "wood", "x": 200, "y": 425, "width": 92, "height": 16, "angle": -0.18 },
+			{ "type": "wood", "x": 88, "y": 525, "width": 98, "height": 16, "angle": -0.12 },
+			{ "type": "brick", "x": 346, "y": 535, "width": 34, "height": 190 },
+			{ "type": "lava", "x": 312, "y": 632, "width": 102, "height": 36 },
+			{ "type": "spike", "x": 158, "y": 638, "width": 116, "height": 24 },
+			{ "type": "water", "x": 40, "y": 632, "width": 48, "height": 36 }
+		],
+		"inkLimit": 360,
+		"survivalMs": 6250,
+		"difficultyLabel": "Mirror Stair",
+		"objectiveLabel": "역방향 계단 봉쇄",
+		"objectiveHint": "오른쪽 상단에서 중앙 발판까지 받침을 내리고, 왼쪽에서 오는 벌을 막는 L자 보호선을 그리세요.",
+		"dangerLabel": "역방향 계단 + 용암",
+		"designerNote": "17단계와 지형을 반전해 같은 그림을 반복하는 대신 방향을 읽게 만듭니다."
+	},
+	"19": {
+		"designType": "terrain-pocket",
+		"environment": "volcanic",
+		"dog": { "x": 195, "y": 405 },
+		"hives": [
+			{ "x": 195, "y": 78, "beeCount": 15, "spawnIntervalMs": 170, "beeForce": 0.0024, "attackStyle": "breaker" },
+			{ "x": 56, "y": 142, "beeCount": 11, "spawnIntervalMs": 210, "beeForce": 0.0023, "attackStyle": "flank-left" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 195, "y": 445, "width": 102, "height": 16 },
+			{ "type": "brick", "x": 122, "y": 505, "width": 34, "height": 184 },
+			{ "type": "brick", "x": 268, "y": 505, "width": 34, "height": 184 },
+			{ "type": "wood", "x": 78, "y": 540, "width": 84, "height": 16, "angle": 0.12 },
+			{ "type": "wood", "x": 312, "y": 540, "width": 84, "height": 16, "angle": -0.12 },
+			{ "type": "water", "x": 80, "y": 632, "width": 106, "height": 36 },
+			{ "type": "lava", "x": 310, "y": 632, "width": 106, "height": 36 },
+			{ "type": "spike", "x": 195, "y": 638, "width": 74, "height": 24 }
+		],
+		"inkLimit": 350,
+		"survivalMs": 6500,
+		"difficultyLabel": "Crossfire Pocket",
+		"objectiveLabel": "상단과 측면 동시 차단",
+		"objectiveHint": "두 기둥 사이의 포켓에서 위쪽과 왼쪽을 같이 닫고, 아래 가시로 밀리지 않을 받침을 남기세요.",
+		"dangerLabel": "상단 breaker + 측면 벌",
+		"designerNote": "벌집 위치와 역할이 다릅니다. 하나의 직선으로는 두 접근로를 모두 막을 수 없도록 구성했습니다."
+	},
+	"20": {
+		"designType": "final-composite",
+		"environment": "volcanic",
+		"dog": { "x": 195, "y": 255 },
+		"hives": [
+			{ "x": 62, "y": 86, "beeCount": 15, "spawnIntervalMs": 165, "beeForce": 0.00245, "attackStyle": "flank-left" },
+			{ "x": 328, "y": 86, "beeCount": 15, "spawnIntervalMs": 165, "beeForce": 0.00245, "attackStyle": "flank-right" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "brick", "x": 62, "y": 495, "width": 40, "height": 260 },
+			{ "type": "brick", "x": 328, "y": 495, "width": 40, "height": 260 },
+			{ "type": "wood", "x": 108, "y": 498, "width": 86, "height": 16, "angle": 0.14 },
+			{ "type": "wood", "x": 282, "y": 498, "width": 86, "height": 16, "angle": -0.14 },
+			{ "type": "brick", "x": 195, "y": 555, "width": 34, "height": 142 },
+			{ "type": "water", "x": 84, "y": 632, "width": 112, "height": 36 },
+			{ "type": "lava", "x": 195, "y": 632, "width": 98, "height": 36 },
+			{ "type": "lava", "x": 306, "y": 632, "width": 112, "height": 36 },
+			{ "type": "spike", "x": 195, "y": 500, "width": 70, "height": 24 },
+			{ "type": "crate", "x": 270, "y": 460, "width": 54, "height": 54 }
+		],
+		"inkLimit": 335,
+		"survivalMs": 6900,
+		"difficultyLabel": "Final Composite",
+		"objectiveLabel": "낙하, 덮개, 양쪽 통로",
+		"objectiveHint": "공중의 강아지 아래 받침을 중앙 기둥에 연결하고, 양쪽 벽까지 이어지는 덮개로 두 벌집의 진입로를 모두 닫으세요.",
+		"dangerLabel": "협동 벌 + 세 갈래 함정 + 상자",
+		"designerNote": "최종 단계는 공중 시작, 복수 벌집, 역할 분담, 물·용암·가시·상자를 함께 배치한 완성형 맵입니다."
+	},
+	"21": {
+		"designType": "slope-slide",
+		"environment": "forest",
+		"dog": { "x": 92, "y": 400 },
+		"hives": [{ "x": 318, "y": 92, "beeCount": 22, "spawnIntervalMs": 170, "beeForce": 0.00255, "attackStyle": "flank-left" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "ice", "x": 94, "y": 440, "width": 112, "height": 18, "angle": -0.06 },
+			{ "type": "stone", "x": 194, "y": 536, "width": 42, "height": 244 },
+			{ "type": "wood", "x": 300, "y": 320, "width": 142, "height": 16, "angle": -0.28 },
+			{ "type": "rolling-boulder", "x": 336, "y": 264, "width": 58, "height": 58 },
+			{ "type": "water", "x": 78, "y": 632, "width": 118, "height": 36 },
+			{ "type": "acid", "x": 302, "y": 632, "width": 142, "height": 36 }
+		],
+		"inkLimit": 350,
+		"survivalMs": 10000,
+		"difficultyLabel": "바위 경사",
+		"objectiveLabel": "굴러오는 바위와 벌 동시 차단",
+		"objectiveHint": "오른쪽 경사에서 굴러 내려오는 바위가 강아지 쪽으로 오기 전에, 돌기둥과 발판을 함께 쓰는 짧은 지붕을 만드세요.",
+		"dangerLabel": "굴림 바위 + 산성 웅덩이",
+		"designerNote": "새로운 굴림 바위는 실제 물리 물체입니다. 선이 바위와 벌을 모두 버틸 수 있는 방향으로 지지점을 찾아야 합니다."
+	},
+	"22": {
+		"designType": "terrain-pocket",
+		"environment": "forest",
+		"dog": { "x": 195, "y": 462 },
+		"hives": [
+			{ "x": 70, "y": 94, "beeCount": 13, "spawnIntervalMs": 178, "beeForce": 0.00255, "attackStyle": "flank-left" },
+			{ "x": 320, "y": 94, "beeCount": 13, "spawnIntervalMs": 178, "beeForce": 0.00255, "attackStyle": "flank-right" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "ice", "x": 195, "y": 502, "width": 104, "height": 18 },
+			{ "type": "stone", "x": 76, "y": 538, "width": 40, "height": 236 },
+			{ "type": "stone", "x": 314, "y": 538, "width": 40, "height": 236 },
+			{ "type": "acid", "x": 195, "y": 632, "width": 188, "height": 36 },
+			{ "type": "water", "x": 52, "y": 632, "width": 46, "height": 36 },
+			{ "type": "water", "x": 338, "y": 632, "width": 46, "height": 36 }
+		],
+		"inkLimit": 340,
+		"survivalMs": 10000,
+		"difficultyLabel": "산성 포켓",
+		"objectiveLabel": "미끄러운 포켓 입구 봉쇄",
+		"objectiveHint": "얼음 발판 위 강아지가 미끄러지지 않도록 먼저 받침을 만들고, 양쪽 돌기둥에 걸쳐 열린 위쪽만 닫으세요.",
+		"dangerLabel": "양측 벌 + 산성 + 얼음",
+		"designerNote": "중앙을 원으로 감싸는 대신 포켓의 위쪽 틈과 아래 미끄럼을 한 선에 해결해야 하는 지형 퍼즐입니다."
+	},
+	"23": {
+		"designType": "fall-catch",
+		"environment": "forest",
+		"dog": { "x": 286, "y": 248 },
+		"hives": [{ "x": 76, "y": 98, "beeCount": 24, "spawnIntervalMs": 165, "beeForce": 0.0026, "attackStyle": "flank-right" }],
+		"obstacles": [
+			{ "type": "ground", "x": 88, "y": 660, "width": 176, "height": 20 },
+			{ "type": "ground", "x": 304, "y": 660, "width": 148, "height": 20 },
+			{ "type": "stone", "x": 74, "y": 530, "width": 40, "height": 248 },
+			{ "type": "wood", "x": 154, "y": 544, "width": 106, "height": 16, "angle": 0.12 },
+			{ "type": "ice", "x": 282, "y": 330, "width": 96, "height": 18, "angle": -0.14 },
+			{ "type": "acid", "x": 198, "y": 650, "width": 104, "height": 42 },
+			{ "type": "spike", "x": 322, "y": 638, "width": 72, "height": 24 }
+		],
+		"inkLimit": 328,
+		"survivalMs": 10000,
+		"difficultyLabel": "얼음 받침",
+		"objectiveLabel": "공중 얼음 발판에서 받침 연결",
+		"objectiveHint": "강아지가 얼음 경사에서 미끄러지기 전에 왼쪽 돌기둥까지 받침을 내리고, 남은 선으로 벌 진입각을 막으세요.",
+		"dangerLabel": "낙하 + 산성 구덩이 + 가시",
+		"designerNote": "바닥을 일부 비운 구덩이 맵입니다. 방어선이 지붕이면서 동시에 낙하 발판이어야 합니다."
+	},
+	"24": {
+		"designType": "anchor-wall",
+		"environment": "forest",
+		"dog": { "x": 108, "y": 472 },
+		"hives": [
+			{ "x": 294, "y": 82, "beeCount": 14, "spawnIntervalMs": 160, "beeForce": 0.00265, "attackStyle": "breaker" },
+			{ "x": 346, "y": 226, "beeCount": 10, "spawnIntervalMs": 190, "beeForce": 0.0025, "attackStyle": "flank-left" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "wood", "x": 108, "y": 512, "width": 108, "height": 16 },
+			{ "type": "stone", "x": 206, "y": 508, "width": 40, "height": 282 },
+			{ "type": "wood", "x": 300, "y": 360, "width": 116, "height": 16, "angle": -0.2 },
+			{ "type": "rolling-boulder", "x": 338, "y": 304, "width": 54, "height": 54 },
+			{ "type": "water", "x": 88, "y": 632, "width": 112, "height": 36 },
+			{ "type": "acid", "x": 302, "y": 632, "width": 136, "height": 36 }
+		],
+		"inkLimit": 320,
+		"survivalMs": 10000,
+		"difficultyLabel": "바위 관문",
+		"objectiveLabel": "기둥 뒤 안전실 고정",
+		"objectiveHint": "중앙 돌기둥을 등지고 짧게 안전실을 만든 뒤, 경사에서 내려오는 바위가 선을 밀지 못하도록 지붕을 발판에 걸치세요.",
+		"dangerLabel": "breaker 벌 + 굴림 바위",
+		"designerNote": "벌의 우회와 바위의 물리 충돌을 하나의 앵커 구조로 해결해야 하는 중후반 관문입니다."
+	},
+	"25": {
+		"designType": "split-hive",
+		"environment": "forest",
+		"dog": { "x": 195, "y": 438 },
+		"hives": [
+			{ "x": 52, "y": 90, "beeCount": 11, "spawnIntervalMs": 158, "beeForce": 0.00265, "attackStyle": "flank-left" },
+			{ "x": 338, "y": 90, "beeCount": 11, "spawnIntervalMs": 158, "beeForce": 0.00265, "attackStyle": "flank-right" },
+			{ "x": 195, "y": 72, "beeCount": 9, "spawnIntervalMs": 182, "beeForce": 0.0026, "attackStyle": "breaker" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "ice", "x": 195, "y": 478, "width": 112, "height": 18 },
+			{ "type": "stone", "x": 102, "y": 550, "width": 38, "height": 214 },
+			{ "type": "stone", "x": 288, "y": 550, "width": 38, "height": 214 },
+			{ "type": "acid", "x": 195, "y": 632, "width": 128, "height": 36 },
+			{ "type": "spike", "x": 74, "y": 638, "width": 76, "height": 24 },
+			{ "type": "spike", "x": 316, "y": 638, "width": 76, "height": 24 }
+		],
+		"inkLimit": 310,
+		"survivalMs": 10000,
+		"difficultyLabel": "세 벌집 지붕",
+		"objectiveLabel": "세 방향 벌집을 한 지붕으로 분산",
+		"objectiveHint": "왼쪽·오른쪽·상단 벌집이 동시에 접근합니다. 돌기둥에 걸친 넓은 지붕으로 각도를 흘리고, 얼음 위 강아지가 밀리지 않게 하세요.",
+		"dangerLabel": "세 벌집 협동 + 얼음",
+		"designerNote": "벌 수만 늘리지 않고 서로 다른 진입각 세 개를 동시에 읽어야 하는 퍼즐로 난이도를 올립니다."
+	},
+	"26": {
+		"designType": "trap-basin",
+		"environment": "volcanic",
+		"dog": { "x": 302, "y": 412 },
+		"hives": [{ "x": 72, "y": 96, "beeCount": 25, "spawnIntervalMs": 154, "beeForce": 0.0027, "attackStyle": "flank-right" }],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "ice", "x": 302, "y": 452, "width": 100, "height": 18, "angle": -0.08 },
+			{ "type": "stone", "x": 350, "y": 512, "width": 38, "height": 264 },
+			{ "type": "wood", "x": 184, "y": 518, "width": 106, "height": 16, "angle": 0.18 },
+			{ "type": "bomb", "x": 154, "y": 560, "width": 42, "height": 42 },
+			{ "type": "lava", "x": 280, "y": 632, "width": 130, "height": 36 },
+			{ "type": "acid", "x": 90, "y": 632, "width": 126, "height": 36 }
+		],
+		"inkLimit": 302,
+		"survivalMs": 10000,
+		"difficultyLabel": "폭탄 분지",
+		"objectiveLabel": "폭탄을 피해 분지 위 방어선 만들기",
+		"objectiveHint": "오른쪽 돌기둥과 중앙 발판 사이로 선을 걸되, 왼쪽 폭탄을 방어선 또는 강아지와 닿게 두지 마세요.",
+		"dangerLabel": "폭탄 + 용암 + 산성",
+		"designerNote": "단순 폐곡선이 아니라, 안전한 고정점만 골라 얇은 통로를 만드는 능력을 검사합니다."
+	},
+	"27": {
+		"designType": "bridge-gap",
+		"environment": "forest",
+		"dog": { "x": 192, "y": 282 },
+		"hives": [
+			{ "x": 58, "y": 90, "beeCount": 13, "spawnIntervalMs": 152, "beeForce": 0.0027, "attackStyle": "flank-left" },
+			{ "x": 332, "y": 90, "beeCount": 13, "spawnIntervalMs": 152, "beeForce": 0.0027, "attackStyle": "flank-right" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 72, "y": 660, "width": 144, "height": 20 },
+			{ "type": "ground", "x": 318, "y": 660, "width": 144, "height": 20 },
+			{ "type": "ice", "x": 195, "y": 322, "width": 102, "height": 18 },
+			{ "type": "stone", "x": 62, "y": 516, "width": 38, "height": 250 },
+			{ "type": "stone", "x": 328, "y": 516, "width": 38, "height": 250 },
+			{ "type": "wood", "x": 290, "y": 420, "width": 126, "height": 16, "angle": -0.24 },
+			{ "type": "rolling-boulder", "x": 332, "y": 366, "width": 56, "height": 56 },
+			{ "type": "acid", "x": 195, "y": 650, "width": 112, "height": 42 }
+		],
+		"inkLimit": 294,
+		"survivalMs": 10000,
+		"difficultyLabel": "압쇄 다리",
+		"objectiveLabel": "구덩이 위 지붕과 다리 분리",
+		"objectiveHint": "중앙 구덩이를 바로 막기보다, 강아지 아래 짧은 다리와 오른쪽 바위 경로를 분리하는 구조를 그리세요.",
+		"dangerLabel": "바닥 구덩이 + 굴림 바위",
+		"designerNote": "구덩이와 떨어지는 바위를 함께 배치해 선의 위치와 무게 중심을 고려하게 만드는 물리 퀴즈입니다."
+	},
+	"28": {
+		"designType": "hive-box",
+		"environment": "forest",
+		"dog": { "x": 195, "y": 488 },
+		"hives": [
+			{ "x": 68, "y": 92, "beeCount": 14, "spawnIntervalMs": 150, "beeForce": 0.00272, "attackStyle": "flank-left" },
+			{ "x": 322, "y": 92, "beeCount": 14, "spawnIntervalMs": 150, "beeForce": 0.00272, "attackStyle": "flank-right" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "ice", "x": 195, "y": 528, "width": 104, "height": 18 },
+			{ "type": "stone", "x": 116, "y": 470, "width": 38, "height": 188 },
+			{ "type": "stone", "x": 274, "y": 470, "width": 38, "height": 188 },
+			{ "type": "wood", "x": 195, "y": 380, "width": 118, "height": 16 },
+			{ "type": "acid", "x": 70, "y": 632, "width": 90, "height": 36 },
+			{ "type": "lava", "x": 195, "y": 632, "width": 124, "height": 36 },
+			{ "type": "water", "x": 320, "y": 632, "width": 90, "height": 36 }
+		],
+		"inkLimit": 286,
+		"survivalMs": 10000,
+		"difficultyLabel": "산성 감옥",
+		"objectiveLabel": "얼음 상자 안에서 이중 지지",
+		"objectiveHint": "양쪽 돌기둥과 위 발판이 만든 상자에서, 아래 미끄럼을 먼저 막고 지붕 틈을 닫아 양쪽 벌을 분산시키세요.",
+		"dangerLabel": "양측 벌 + 세 종류 하단 함정",
+		"designerNote": "안전한 고정점은 많지만 잉크가 부족합니다. 지형 자체가 막아 주는 면을 읽는 것이 핵심입니다."
+	},
+	"29": {
+		"designType": "pressure-cage",
+		"environment": "volcanic",
+		"dog": { "x": 104, "y": 338 },
+		"hives": [
+			{ "x": 328, "y": 84, "beeCount": 16, "spawnIntervalMs": 148, "beeForce": 0.00275, "attackStyle": "breaker" },
+			{ "x": 290, "y": 236, "beeCount": 10, "spawnIntervalMs": 178, "beeForce": 0.00265, "attackStyle": "flank-left" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
+			{ "type": "ice", "x": 104, "y": 378, "width": 104, "height": 18, "angle": 0.08 },
+			{ "type": "stone", "x": 44, "y": 510, "width": 38, "height": 260 },
+			{ "type": "stone", "x": 210, "y": 518, "width": 38, "height": 244 },
+			{ "type": "wood", "x": 314, "y": 412, "width": 116, "height": 16, "angle": -0.18 },
+			{ "type": "rolling-boulder", "x": 346, "y": 356, "width": 54, "height": 54 },
+			{ "type": "bomb", "x": 274, "y": 570, "width": 42, "height": 42 },
+			{ "type": "lava", "x": 156, "y": 632, "width": 168, "height": 36 },
+			{ "type": "acid", "x": 326, "y": 632, "width": 72, "height": 36 }
+		],
+		"inkLimit": 278,
+		"survivalMs": 10000,
+		"difficultyLabel": "압박 미로",
+		"objectiveLabel": "바위 길과 폭탄 길 분리",
+		"objectiveHint": "왼쪽 돌기둥과 중앙 돌기둥 사이를 안전실로 쓰고, 오른쪽 경사 바위와 폭탄을 한 선에서 모두 멀리 두세요.",
+		"dangerLabel": "breaker 벌 + 바위 + 폭탄",
+		"designerNote": "위험물의 수를 늘리는 대신 서로 다른 방향에서 오는 동적 위험을 분리해야 클리어할 수 있도록 만들었습니다."
+	},
+	"30": {
+		"designType": "final-composite",
+		"environment": "forest",
+		"dog": { "x": 195, "y": 244 },
+		"hives": [
+			{ "x": 56, "y": 84, "beeCount": 14, "spawnIntervalMs": 145, "beeForce": 0.0028, "attackStyle": "flank-left" },
+			{ "x": 334, "y": 84, "beeCount": 14, "spawnIntervalMs": 145, "beeForce": 0.0028, "attackStyle": "flank-right" },
+			{ "x": 195, "y": 72, "beeCount": 10, "spawnIntervalMs": 170, "beeForce": 0.00275, "attackStyle": "breaker" }
+		],
+		"obstacles": [
+			{ "type": "ground", "x": 66, "y": 660, "width": 132, "height": 20 },
+			{ "type": "ground", "x": 324, "y": 660, "width": 132, "height": 20 },
+			{ "type": "ice", "x": 195, "y": 286, "width": 100, "height": 18 },
+			{ "type": "stone", "x": 62, "y": 490, "width": 42, "height": 276 },
+			{ "type": "stone", "x": 328, "y": 490, "width": 42, "height": 276 },
+			{ "type": "stone", "x": 195, "y": 554, "width": 38, "height": 150 },
+			{ "type": "wood", "x": 106, "y": 430, "width": 106, "height": 16, "angle": 0.16 },
+			{ "type": "wood", "x": 284, "y": 430, "width": 106, "height": 16, "angle": -0.16 },
+			{ "type": "rolling-boulder", "x": 66, "y": 370, "width": 52, "height": 52 },
+			{ "type": "rolling-boulder", "x": 324, "y": 370, "width": 52, "height": 52 },
+			{ "type": "acid", "x": 195, "y": 650, "width": 112, "height": 42 },
+			{ "type": "spike", "x": 92, "y": 638, "width": 52, "height": 24 },
+			{ "type": "spike", "x": 298, "y": 638, "width": 52, "height": 24 }
+		],
+		"inkLimit": 270,
+		"survivalMs": 10000,
+		"difficultyLabel": "최종 균열",
+		"objectiveLabel": "세 벌집과 양쪽 바위에서 10초 버티기",
+		"objectiveHint": "공중 얼음 발판의 강아지 아래를 중앙 돌기둥에 잇고, 양쪽 경사 바위가 선을 밀어도 무너지지 않는 지붕을 만드세요.",
+		"dangerLabel": "세 벌집 협동 + 양쪽 굴림 바위 + 구덩이",
+		"designerNote": "30단계는 모든 규칙을 한 번에 요구하는 챌린지입니다. 완전한 원보다 지형에 걸린 넓은 지붕과 안정적인 받침이 필요합니다."
+	}
+}

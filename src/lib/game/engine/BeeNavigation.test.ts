@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import Matter from 'matter-js';
 
 import { createBeeDifficultyProfile } from './BeeDifficulty.js';
-import { BeeNavigation } from './BeeNavigation.js';
+import { BeeNavigation, resolveBeeRole } from './BeeNavigation.js';
 import type { CanvasSize } from '../types.js';
 
 const size: CanvasSize = { width: 320, height: 240 };
@@ -40,5 +40,12 @@ describe('BeeNavigation', () => {
 		const uniqueTargetKeys = new Set(targets.map((target) => `${Math.round(target.x / 8)}:${Math.round(target.y / 8)}`));
 
 		expect(uniqueTargetKeys.size).toBeGreaterThanOrEqual(2);
+	});
+
+	it('벌집이 지정한 공격 역할은 bee id와 무관하게 유지한다', () => {
+		expect(resolveBeeRole(1, 1, 'direct')).toBe('chaser');
+		expect(resolveBeeRole(1, 1, 'flank-left')).toBe('flanker-left');
+		expect(resolveBeeRole(1, 1, 'flank-right')).toBe('flanker-right');
+		expect(resolveBeeRole(1, 1, 'breaker')).toBe('bruiser');
 	});
 });

@@ -5,6 +5,20 @@ export const BASE_WORLD = {
 
 export type GamePhase = 'ready' | 'drawing' | 'simulating' | 'cleared' | 'failed' | 'transitioning';
 export type SkinId = 'classic' | 'minecraft' | 'lego';
+export type StageEnvironment = 'meadow' | 'volcanic' | 'forest';
+export type DifficultyProfileId = 'tutorial' | 'shelter' | 'hazard' | 'swarm' | 'physics' | 'expert' | 'master';
+
+export interface StageDifficulty {
+	profile: DifficultyProfileId;
+	overrides?: {
+		intelligence?: number;
+		aiRefreshBudget?: number;
+		forceMultiplier?: number;
+		maxSpeed?: number;
+		attackCandidateLimit?: number;
+		attackPathSearchLimit?: number;
+	};
+}
 
 export interface Point {
 	x: number;
@@ -16,7 +30,35 @@ export interface CanvasSize {
 	height: number;
 }
 
-export type ObstacleType = 'ground' | 'platform' | 'spike' | 'wall';
+export type ObstacleType =
+	| 'ground'
+	| 'platform'
+	| 'spike'
+	| 'wall'
+	| 'water'
+	| 'lava'
+	| 'brick'
+	| 'wood'
+	| 'bomb'
+	| 'boulder'
+	| 'crate'
+	| 'acid'
+	| 'ice'
+	| 'stone'
+	| 'rolling-boulder';
+export type BeeAttackStyle = 'direct' | 'flank-left' | 'flank-right' | 'breaker';
+export type StageDesignType =
+	| 'basic-cover'
+	| 'fall-catch'
+	| 'bridge-gap'
+	| 'anchor-wall'
+	| 'trap-basin'
+	| 'split-hive'
+	| 'terrain-pocket'
+	| 'hive-box'
+	| 'slope-slide'
+	| 'pressure-cage'
+	| 'final-composite';
 
 export interface ObstacleData {
 	type: ObstacleType;
@@ -33,6 +75,7 @@ export interface HiveData {
 	beeCount: number;
 	spawnIntervalMs: number;
 	beeForce?: number;
+	attackStyle?: BeeAttackStyle;
 }
 
 export interface StageData {
@@ -42,7 +85,14 @@ export interface StageData {
 	obstacles: ObstacleData[];
 	inkLimit: number;
 	survivalMs: number;
+	environment?: StageEnvironment;
 	difficultyLabel?: string;
+	designType?: StageDesignType;
+	objectiveLabel?: string;
+	objectiveHint?: string;
+	dangerLabel?: string;
+	designerNote?: string;
+	difficulty?: StageDifficulty;
 }
 
 export interface StoredProgress {
@@ -67,6 +117,17 @@ export type BodyLabel =
 	| 'ground'
 	| 'platform'
 	| 'spike'
+	| 'water'
+	| 'lava'
+	| 'brick'
+	| 'wood'
+	| 'bomb'
+	| 'boulder'
+	| 'crate'
+	| 'acid'
+	| 'ice'
+	| 'stone'
+	| 'rolling-boulder'
 	| 'drawing'
 	| 'wall'
 	| 'deadzone';

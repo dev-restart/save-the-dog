@@ -2,8 +2,8 @@ import Matter from 'matter-js';
 
 import { PHYSICS } from '../constants.js';
 import { clamp, distance, normalizeVector } from '../geometry.js';
-import type { CanvasSize, Point } from '../types.js';
-import { getBeeRole, type BeeDifficultyProfile } from './BeeDifficulty.js';
+import type { BeeAttackStyle, CanvasSize, Point } from '../types.js';
+import { getBeeRole, type BeeDifficultyProfile, type BeeRole } from './BeeDifficulty.js';
 import {
 	bodyToSegmentDistance,
 	pointToBodyDistance,
@@ -52,11 +52,18 @@ export class BeeNavigation {
 		private stageId: number
 	) {}
 
-	chooseTarget(bee: BeeNavigationState, dogPosition: Point, navigationBodies: Matter.Body[], nowMs: number): Point {
-		if (navigationBodies.length === 0) return this.chooseOpenAttackTarget(bee, dogPosition, navigationBodies);
+	chooseTarget(
+		bee: BeeNavigationState,
+		dogPosition: Point,
+		navigationBodies: Matter.Body[],
+		nowMs: number,
+		attackStyle?: BeeAttackStyle
+	): Point {
+		const role = resolveBeeRole(bee.id, this.stageId, attackStyle);
+		if (navigationBodies.length === 0) return this.chooseOpenAttackTarget(bee, dogPosition, navigationBodies, role);
 
 		const blocker = this.findLineBlocker(bee.position, dogPosition, navigationBodies, ROUTE_PADDING);
-		if (!blocker) return this.chooseOpenAttackTarget(bee, dogPosition, navigationBodies);
+		if (!blocker) return this.chooseOpenAttackTarget(bee, dogPosition, navigationBodies, role);
 
 		const cached = this.routeCache.get(bee.id);
 		if (cached && cached.expiresAtMs > nowMs && distance(bee.position, cached.target) > 14) {
@@ -66,7 +73,7 @@ export class BeeNavigation {
 		// 직선 공격이 막히면 여러 벌이 한 점에 몰리지 않도록 bee id/role별로 공격 후보와 우회 probe를 분산한다.
 		const target =
 			(this.profile.usesDogAttackCandidates
-				? this.findBestAttackTarget(bee, dogPosition, navigationBodies)
+				? this.findBestAttackTarget(bee, dogPosition, navigationBodies, role)
 				: null) ??
 			this.findPathTarget(bee.position, dogPosition, navigationBodies, bee.id) ??
 			this.chooseGapProbeTarget(bee.position, dogPosition, navigationBodies, blocker, bee.id);
@@ -103,9 +110,12 @@ export class BeeNavigation {
 		return blocker;
 	}
 
-	private chooseOpenAttackTarget(bee: BeeNavigationState, dogPosition: Point, navigationBodies: Matter.Body[]): Point {
-		const role = getBeeRole(bee.id, this.stageId);
-
+	private chooseOpenAttackTarget(
+		bee: BeeNavigationState,
+		dogPosition: Point,
+		navigationBodies: Matter.Body[],
+		role: BeeRole
+	): Point {
 		if (role === 'bruiser') {
 			const drawingTarget = findClosestBodyPosition(
 				bee.position,
@@ -150,8 +160,12 @@ export class BeeNavigation {
 		return path ? pickRouteLookahead(start, [...path, routeGoal], this.profile.routeLookahead) : null;
 	}
 
-	private findBestAttackTarget(bee: BeeNavigationState, goal: Point, blockers: Matter.Body[]): Point | null {
-		const role = getBeeRole(bee.id, this.stageId);
+	private findBestAttackTarget(
+		bee: BeeNavigationState,
+		goal: Point,
+		blockers: Matter.Body[],
+		role: BeeRole
+	): Point | null {
 		const candidates = this.createDogAttackCandidates(goal, blockers)
 			.map((point) => ({
 				point,
@@ -206,7 +220,7 @@ export class BeeNavigation {
 		});
 	}
 
-	private roleCohortPenalty(point: Point, goal: Point, role: ReturnType<typeof getBeeRole>, beeId: number): number {
+	private roleCohortPenalty(point: Point, goal: Point, role: BeeRole, beeId: number): number {
 		const angle = Math.atan2(point.y - goal.y, point.x - goal.x);
 		const cohort = Math.abs(beeId + this.stageId) % 5;
 		const desiredAngle =
@@ -499,4 +513,12 @@ function pickRouteLookahead(start: Point, path: Point[], lookahead: number): Poi
 	}
 
 	return path.at(1) ?? path[0] ?? start;
+}
+
+export function resolveBeeRole(beeId: number, stageId: number, attackStyle?: BeeAttackStyle): BeeRole {
+	if (attackStyle === 'direct') return 'chaser';
+	if (attackStyle === 'flank-left') return 'flanker-left';
+	if (attackStyle === 'flank-right') return 'flanker-right';
+	if (attackStyle === 'breaker') return 'bruiser';
+	return getBeeRole(beeId, stageId);
 }

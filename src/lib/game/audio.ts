@@ -8,7 +8,7 @@ export interface AudioPreferences {
 	sfxEnabled: boolean;
 }
 
-const DEFAULT_AUDIO_PREFERENCES: AudioPreferences = {
+export const DEFAULT_AUDIO_PREFERENCES: AudioPreferences = {
 	musicEnabled: true,
 	sfxEnabled: true
 };
@@ -17,25 +17,6 @@ const BGM_VOLUME = 0.32;
 const SFX_VOLUME = 0.46;
 const BEE_BUZZ_VOLUME = SFX_VOLUME * 0.42;
 const BARRIER_TAP_COOLDOWN_MS = 160;
-
-export function loadAudioPreferences(): AudioPreferences {
-	if (!browser) return { ...DEFAULT_AUDIO_PREFERENCES };
-
-	try {
-		const parsed = JSON.parse(localStorage.getItem(AUDIO_STORAGE_KEY) ?? '{}') as Partial<AudioPreferences>;
-		return {
-			musicEnabled: parsed.musicEnabled !== false,
-			sfxEnabled: parsed.sfxEnabled !== false
-		};
-	} catch {
-		return { ...DEFAULT_AUDIO_PREFERENCES };
-	}
-}
-
-export function saveAudioPreferences(preferences: AudioPreferences): void {
-	if (!browser) return;
-	localStorage.setItem(AUDIO_STORAGE_KEY, JSON.stringify(preferences));
-}
 
 export class GameAudioManager {
 	private bgm: HTMLAudioElement | null = null;

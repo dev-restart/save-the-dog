@@ -1,11 +1,34 @@
 import type { SkinId } from './types.js';
 
-export type SkinAsset = 'background' | 'dog' | 'dogHurt' | 'bee' | 'hive' | 'ground' | 'platform' | 'spike';
+export type RequiredSkinAsset =
+	| 'background'
+	| 'dog'
+	| 'dogHurt'
+	| 'bee'
+	| 'hive'
+	| 'ground'
+	| 'platform'
+	| 'spike';
+export type OptionalSkinAsset =
+	| 'water'
+	| 'lava'
+	| 'brick'
+	| 'wood'
+	| 'bomb'
+	| 'boulder'
+	| 'crate'
+	| 'acid'
+	| 'ice'
+	| 'stone'
+	| 'rollingBoulder'
+	| 'volcanoBackground'
+	| 'forestBackground';
+export type SkinAsset = RequiredSkinAsset | OptionalSkinAsset;
 
 export interface SkinDefinition {
 	id: SkinId;
 	label: string;
-	assets: Record<SkinAsset, string>;
+	assets: Record<RequiredSkinAsset, string> & Partial<Record<OptionalSkinAsset, string>>;
 	menu: {
 		introBackground: string;
 		introTitle: string;
@@ -14,16 +37,29 @@ export interface SkinDefinition {
 	drawingStroke: string;
 }
 
-function skinAssets(id: SkinId): Record<SkinAsset, string> {
+function skinAssets(id: SkinId): SkinDefinition['assets'] {
 	return {
 		background: `/skins/${id}/background.png`,
+		volcanoBackground: `/skins/${id}/background-volcano.png`,
+		forestBackground: `/skins/${id}/background-forest.png`,
 		dog: `/skins/${id}/dog.png`,
 		dogHurt: `/skins/${id}/dog-hurt.png`,
 		bee: `/skins/${id}/bee.png`,
 		hive: `/skins/${id}/hive.png`,
 		ground: `/skins/${id}/ground.png`,
 		platform: `/skins/${id}/platform.png`,
-		spike: `/skins/${id}/spike.png`
+		spike: `/skins/${id}/spike.png`,
+		water: `/skins/${id}/water.png`,
+		lava: `/skins/${id}/lava.png`,
+		brick: `/skins/${id}/brick.png`,
+		wood: `/skins/${id}/wood.png`,
+		bomb: `/skins/${id}/bomb.png`,
+		boulder: `/skins/${id}/boulder.png`,
+		crate: `/skins/${id}/crate.png`,
+		acid: `/skins/${id}/acid.png`,
+		ice: `/skins/${id}/ice.png`,
+		stone: `/skins/${id}/stone.png`,
+		rollingBoulder: `/skins/${id}/rolling-boulder.png`
 	};
 }
 
@@ -38,8 +74,8 @@ export const SKINS: SkinDefinition[] = [
 			introBackground: '/skins/classic/intro-background.png',
 			introTitle: '/skins/classic/intro-title.svg'
 		},
-		drawingFill: '#8b5a2b',
-		drawingStroke: '#2f1f18'
+		drawingFill: '#111827',
+		drawingStroke: '#020617'
 	},
 	{
 		id: 'minecraft',
@@ -49,8 +85,8 @@ export const SKINS: SkinDefinition[] = [
 			introBackground: '/skins/minecraft/intro-background.png',
 			introTitle: '/skins/minecraft/intro-title.svg'
 		},
-		drawingFill: '#7c5f3b',
-		drawingStroke: '#2f2417'
+		drawingFill: '#111827',
+		drawingStroke: '#020617'
 	},
 	{
 		id: 'lego',
@@ -60,8 +96,8 @@ export const SKINS: SkinDefinition[] = [
 			introBackground: '/skins/lego/intro-background.png',
 			introTitle: '/skins/lego/intro-title.svg'
 		},
-		drawingFill: '#d23b28',
-		drawingStroke: '#5a140d'
+		drawingFill: '#111827',
+		drawingStroke: '#020617'
 	}
 ];
 

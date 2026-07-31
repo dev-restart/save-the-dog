@@ -1,4 +1,5 @@
 import { clamp } from '../geometry.js';
+import type { DifficultyProfileId, StageDifficulty } from '../types.js';
 
 export interface BeeDifficultyProfile {
 	intelligence: number;
@@ -15,19 +16,25 @@ export interface BeeDifficultyProfile {
 	probeMargin: number;
 	wallFollowWeight: number;
 	avoidanceWeight: number;
-	drawingDurability: number;
-	drawingDamagePerMs: number;
-	drawingDragPerMs: number;
-	drawingLiftPerMs: number;
-	drawingRotationPerMs: number;
 	usesDogAttackCandidates: boolean;
-	canPressureDrawing: boolean;
-	canDamageDrawing: boolean;
-	canDragDrawing: boolean;
-	canRotateDrawing: boolean;
 }
 
-export function createBeeDifficultyProfile(stageId: number): BeeDifficultyProfile {
+export const BEE_DIFFICULTY_PROFILES: Record<DifficultyProfileId, BeeDifficultyProfile> = {
+	tutorial: createProfile(0, 25, 1, 7, 4, 1, false),
+	shelter: createProfile(0.12, 4, 1.08, 7.3, 4, 1, true),
+	hazard: createProfile(0.26, 4, 1.16, 7.6, 5, 1, true),
+	swarm: createProfile(0.42, 5, 1.24, 7.9, 6, 2, true),
+	physics: createProfile(0.56, 5, 1.32, 8.2, 7, 2, true),
+	expert: createProfile(0.72, 6, 1.4, 8.55, 8, 3, true),
+	master: createProfile(0.9, 7, 1.5, 8.9, 9, 3, true)
+};
+
+export function createBeeDifficultyProfile(stageId: number, difficulty?: StageDifficulty): BeeDifficultyProfile {
+	if (difficulty) {
+		const profile = BEE_DIFFICULTY_PROFILES[difficulty.profile];
+		return { ...profile, ...difficulty.overrides };
+	}
+
 	const stageIndex = Math.max(0, stageId - 1);
 	const intelligence = clamp(stageIndex / 24, 0, 1);
 	const tier = Math.floor(stageIndex / 4);
@@ -47,16 +54,36 @@ export function createBeeDifficultyProfile(stageId: number): BeeDifficultyProfil
 		probeMargin: 26 + intelligence * 28,
 		wallFollowWeight: 1.2 + intelligence * 0.55,
 		avoidanceWeight: 0.42 + intelligence * 0.2,
-		drawingDurability: Number.POSITIVE_INFINITY,
-		drawingDamagePerMs: 0,
-		drawingDragPerMs: 0.003 + intelligence * 0.018,
-		drawingLiftPerMs: 0.002 + intelligence * 0.012,
-		drawingRotationPerMs: 0.00006 + intelligence * 0.00032,
-		usesDogAttackCandidates: stageId >= 2,
-		canPressureDrawing: stageId >= 4,
-		canDamageDrawing: false,
-		canDragDrawing: stageId >= 6,
-		canRotateDrawing: stageId >= 12
+		usesDogAttackCandidates: stageId >= 2
+	};
+}
+
+function createProfile(
+	intelligence: number,
+	aiRefreshBudget: number,
+	forceMultiplier: number,
+	maxSpeed: number,
+	attackCandidateLimit: number,
+	attackPathSearchLimit: number,
+	usesDogAttackCandidates: boolean
+): BeeDifficultyProfile {
+	const tier = Math.round(intelligence * 8);
+	return {
+		intelligence,
+		aiRefreshBudget,
+		routeCellSize: Math.max(14, 18 - intelligence * 4),
+		routeCacheMs: Math.max(420, 900 - tier * 45 - intelligence * 120),
+		routeIterationLimit: Math.floor(1100 + intelligence * 400 + tier * 32),
+		routeLookahead: 38 + intelligence * 30,
+		forceMultiplier,
+		maxSpeed,
+		attackCandidateLimit,
+		attackPathSearchLimit,
+		attackRings: [18, 34, 52, 68 + intelligence * 18],
+		probeMargin: 26 + intelligence * 28,
+		wallFollowWeight: 1.2 + intelligence * 0.55,
+		avoidanceWeight: 0.42 + intelligence * 0.2,
+		usesDogAttackCandidates
 	};
 }
 

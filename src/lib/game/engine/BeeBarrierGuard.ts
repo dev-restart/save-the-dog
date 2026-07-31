@@ -3,7 +3,7 @@ import { PHYSICS } from '../constants.js';
 import type { Point } from '../types.js';
 
 const BARRIER_REBOUND = 0.18;
-const BARRIER_PADDING = 1.5;
+const BARRIER_PADDING = 6;
 
 export function rememberBeePositions(bees: Matter.Body[], positions: Map<number, Point>): void {
 	for (const bee of bees) {
@@ -43,6 +43,24 @@ export function enforceBeeDrawingBarriers(
 			pushBeeOutOfBarrier(bee, drawingParts, beeRadius);
 		}
 	}
+}
+
+export function isBeeSeparatedFromDogByDrawing(
+	bee: Matter.Body,
+	dogBody: Matter.Body,
+	drawings: Matter.Body[],
+	beeRadius = PHYSICS.beeRadius,
+	previousPosition?: Point
+): boolean {
+	if (drawings.length === 0) return false;
+
+	const drawingParts = drawings.flatMap((drawing) => drawingPartsForCollision(drawing));
+	if (drawingParts.length === 0) return false;
+
+	const rayWidth = beeRadius * 2 + BARRIER_PADDING;
+	const origins = previousPosition ? [bee.position, previousPosition] : [bee.position];
+
+	return origins.some((origin) => Matter.Query.ray(drawingParts, origin, dogBody.position, rayWidth).length > 0);
 }
 
 function drawingPartsForCollision(body: Matter.Body): Matter.Body[] {

@@ -3,9 +3,9 @@ export const PHYSICS = {
 	fixedDeltaMs: 1000 / 60,
 	dogRadius: 20,
 	beeRadius: 6,
-	drawingThickness: 16,
+	drawingThickness: 10,
 	defaultInkLimit: 600,
-	defaultSurvivalMs: 5000,
+	defaultSurvivalMs: 10000,
 	maxActiveBees: 25,
 	maxDrawingSegments: 24,
 	beeMaxSpeed: 8
@@ -19,7 +19,8 @@ export const COLLISION_CATEGORY = {
 	spike: 0x0010,
 	deadzone: 0x0020,
 	hive: 0x0040,
-	wall: 0x0080
+	wall: 0x0080,
+	hazard: 0x0100
 } as const;
 
 export const STORAGE_KEY = 'save_the_dog_progress';
