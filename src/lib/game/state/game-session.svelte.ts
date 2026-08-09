@@ -9,6 +9,7 @@ import {
 	type GameSettings
 } from './game-persistence.js';
 import type { StageMapDocument } from '../stages/stage-map-schema.js';
+import { CHALLENGE_STAGE_MAX } from '../stages/challenge.js';
 
 export class GameSessionState {
 	currentStage = $state(1);
@@ -42,10 +43,10 @@ export class GameSessionState {
 		const snapshot = await this.persistence.load();
 		const progress = snapshot.progress;
 		this.highestStage = progress.highestStage;
-		this.lastPlayedStage = progress.lastPlayedStage;
+		this.lastPlayedStage = Math.min(CHALLENGE_STAGE_MAX, progress.lastPlayedStage);
 		this.totalClears = progress.totalClears;
 		this.stageStars = progress.stageStars;
-		this.currentStage = progress.lastPlayedStage;
+		this.currentStage = this.lastPlayedStage;
 
 		this.applySettings(snapshot.settings);
 		this.isLoaded = true;
@@ -77,7 +78,7 @@ export class GameSessionState {
 
 	nextStage(): void {
 		this.phase = 'transitioning';
-		this.currentStage += 1;
+		this.currentStage = Math.min(CHALLENGE_STAGE_MAX, this.currentStage + 1);
 		this.lastPlayedStage = this.currentStage;
 		this.resetRuntime();
 		this.saveProgress();
@@ -164,8 +165,8 @@ export class GameSessionState {
 		}).catch(() => undefined);
 	}
 
-	saveCustomMap(document: StageMapDocument, id?: string): Promise<CustomMapRecord> {
-		return this.persistence.saveCustomMap(document, id);
+	saveCustomMap(document: StageMapDocument, id?: string, onlineMapId?: string, sourceOnlineMapId?: string | null): Promise<CustomMapRecord> {
+		return this.persistence.saveCustomMap(document, id, onlineMapId, sourceOnlineMapId);
 	}
 
 	listCustomMaps(): Promise<CustomMapRecord[]> {

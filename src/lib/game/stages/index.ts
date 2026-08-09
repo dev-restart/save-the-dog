@@ -7,6 +7,7 @@ import {
 	STATIC_STAGE_BLUEPRINTS
 } from './static-stages.js';
 import { applyStageDifficulty } from './difficulty-config.js';
+import { CHALLENGE_STAGE_MAX, CHALLENGE_STAGE_MIN, generateChallengeStage } from './challenge.js';
 import type { StageData } from '../types.js';
 
 export function getStage(stageId: number): StageData {
@@ -19,6 +20,7 @@ export function getStage(stageId: number): StageData {
 		return applyStageDifficulty(applyStageOverride(generateStage(stageId)));
 	}
 
+	if (stageId >= CHALLENGE_STAGE_MIN) return applyStageDifficulty(generateChallengeStage(Math.min(stageId, CHALLENGE_STAGE_MAX)));
 	return applyStageDifficulty(generateStage(stageId));
 }
 

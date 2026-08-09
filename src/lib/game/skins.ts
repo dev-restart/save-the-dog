@@ -22,7 +22,16 @@ export type OptionalSkinAsset =
 	| 'stone'
 	| 'rollingBoulder'
 	| 'volcanoBackground'
-	| 'forestBackground';
+	| 'forestBackground'
+	| 'noDrawZone'
+	| 'noDrawGround'
+	| 'noDrawTree'
+	| 'noDrawRock'
+	| 'explosion'
+	| 'groundCross'
+	| 'dirtWall'
+	| 'stonePillar'
+	| 'terrainBlock';
 export type SkinAsset = RequiredSkinAsset | OptionalSkinAsset;
 
 export interface SkinDefinition {
@@ -59,7 +68,19 @@ function skinAssets(id: SkinId): SkinDefinition['assets'] {
 		acid: `/skins/${id}/acid.png`,
 		ice: `/skins/${id}/ice.png`,
 		stone: `/skins/${id}/stone.png`,
-		rollingBoulder: `/skins/${id}/rolling-boulder.png`
+		rollingBoulder: `/skins/${id}/rolling-boulder.png`,
+		// 연결형 지형은 각 스킨 파일을 쓰되, 모두 금지 표식 없는 타일로 통일한다.
+		noDrawZone: `/skins/${id}/no-draw-zone.png`,
+		noDrawGround: `/skins/${id}/no-draw-ground.png`,
+		noDrawTree: `/skins/${id}/no-draw-tree.png`,
+		noDrawRock: `/skins/${id}/no-draw-rock.png`,
+		// 폭발 연출은 현재 세 스킨이 같은 게임 플레이 실루엣을 공유한다.
+		explosion: '/skins/classic/bomb-explosion-v1.png',
+		groundCross: `/skins/${id}/ground-cross.png`,
+		dirtWall: `/skins/${id}/dirt-wall.png`,
+		stonePillar: `/skins/${id}/stone-pillar.png`,
+		// 블록 지형은 세 스킨에서 같은 충돌 실루엣을 공유한다. 이후 스킨별 변형을 추가해도 호출부는 유지된다.
+		terrainBlock: '/skins/classic/terrain-block-v2.png'
 	};
 }
 

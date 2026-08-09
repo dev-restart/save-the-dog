@@ -6,6 +6,16 @@ import type { DrawingBodyPlugin } from './ObjectFactory.js';
 
 type CircleBody = Matter.Body & { circleRadius?: number };
 
+interface ExplosionEffect {
+	point: Point;
+	startedAt: number;
+	durationMs: number;
+}
+
+function now(): number {
+	return globalThis.performance?.now?.() ?? Date.now();
+}
+
 const BODY_COLORS: Record<string, string> = {
 	ground: '#3f8f52',
 	platform: '#4f9f62',
@@ -13,6 +23,7 @@ const BODY_COLORS: Record<string, string> = {
 	water: '#38bdf8',
 	lava: '#f97316',
 	brick: '#b96b38',
+	'terrain-block': '#b96b38',
 	wood: '#9a6a35',
 	bomb: '#1f2937',
 	boulder: '#6b7280',
@@ -30,6 +41,7 @@ export class CanvasRenderer {
 	private images = new Map<SkinAsset, HTMLImageElement>();
 	private backgroundCache: HTMLCanvasElement | null = null;
 	private backgroundCacheKey = '';
+	private explosions: ExplosionEffect[] = [];
 
 	constructor(skin: SkinId = 'classic', private backgroundEnvironment: StageEnvironment = 'meadow') {
 		this.skin = getSkinDefinition(skin);
@@ -41,20 +53,53 @@ export class CanvasRenderer {
 		world: Matter.World,
 		phase: GamePhase,
 		drawingPoints: Point[],
-		inkRatio: number
+		inkRatio: number,
+		timestamp = now()
 	): void {
 		const width = ctx.canvas.clientWidth || ctx.canvas.width;
 		const height = ctx.canvas.clientHeight || ctx.canvas.height;
 		ctx.clearRect(0, 0, width, height);
 		this.drawBackground(ctx, phase);
 
-		for (const body of Matter.Composite.allBodies(world)) {
+		// 지형 바디를 먼저 그려 배경과 통합된 느낌을 준다.
+		const bodies = Matter.Composite.allBodies(world);
+		const terrainBodies = bodies.filter((body) => this.isTerrainBody(body.label as BodyLabel));
+		const otherBodies = bodies.filter((body) => !this.isTerrainBody(body.label as BodyLabel));
+
+		for (const body of terrainBodies) {
+			this.drawBody(ctx, body, phase);
+		}
+		for (const body of otherBodies) {
 			this.drawBody(ctx, body, phase);
 		}
 
 		if (drawingPoints.length > 1) {
 			this.drawDrawingPreview(ctx, drawingPoints, inkRatio);
 		}
+		this.drawExplosions(ctx, timestamp);
+	}
+
+	triggerExplosion(point: Point): void {
+		this.explosions.push({ point: { ...point }, startedAt: now(), durationMs: PHYSICS.bombExplosionDurationMs });
+	}
+
+	private isTerrainBody(label: BodyLabel): boolean {
+		return (
+			label === 'ground' ||
+			label === 'brick' ||
+			label === 'terrain-block' ||
+			label === 'stone' ||
+			label === 'wood' ||
+			label === 'platform' ||
+			label === 'ice' ||
+			label === 'water' ||
+			label === 'lava' ||
+			label === 'acid' ||
+			label === 'no-draw-zone' ||
+			label === 'no-draw-ground' ||
+			label === 'no-draw-tree' ||
+			label === 'no-draw-rock'
+		);
 	}
 
 	private drawBackground(ctx: CanvasRenderingContext2D, phase: GamePhase): void {
@@ -132,30 +177,33 @@ export class CanvasRenderer {
 			return;
 		}
 		if (label === 'water') {
-			if (!this.drawBodyImage(ctx, body, 'water')) {
-				this.drawWater(ctx, body);
-			}
+			this.drawWater(ctx, body);
 			return;
 		}
 		if (label === 'lava') {
-			if (!this.drawBodyImage(ctx, body, 'lava')) {
-				this.drawLava(ctx, body);
-			}
+			this.drawLava(ctx, body);
 			return;
 		}
 		if (label === 'acid') {
-			if (this.drawBodyImage(ctx, body, 'acid')) return;
+			this.drawAcid(ctx, body);
+			return;
 		}
 		if (label === 'ice') {
 			if (this.drawBodyImage(ctx, body, 'ice')) return;
 		}
 		if (label === 'stone') {
-			if (this.drawBodyImage(ctx, body, 'stone')) return;
+			// 돌 기둥은 stone-pillar 에셋을 우선 사용한다.
+			if (!this.drawBodyImage(ctx, body, 'stonePillar')) {
+				this.drawBodyImage(ctx, body, 'stone');
+			}
+			return;
 		}
 		if (label === 'brick') {
-			if (!this.drawBodyImage(ctx, body, 'brick')) {
-				this.drawBrick(ctx, body);
-			}
+			this.drawBrick(ctx, body);
+			return;
+		}
+		if (label === 'terrain-block') {
+			if (!this.drawBodyImage(ctx, body, 'terrainBlock')) this.drawGrassBlockTerrain(ctx, body);
 			return;
 		}
 		if (label === 'wood') {
@@ -170,8 +218,28 @@ export class CanvasRenderer {
 		if (label === 'rolling-boulder') {
 			if (this.drawBodyImage(ctx, body, 'rollingBoulder')) return;
 		}
-		if (label === 'ground' || label === 'platform') {
+		if (label === 'ground') {
+			this.drawGrassBlockTerrain(ctx, body);
+			return;
+		}
+		if (label === 'platform') {
 			if (this.drawBodyImage(ctx, body, label)) return;
+		}
+		if (label === 'no-draw-zone') {
+			if (!this.drawBodyImage(ctx, body, 'noDrawZone')) this.drawNoDrawZone(ctx, body);
+			return;
+		}
+		if (label === 'no-draw-ground') {
+			this.drawGrassBlockTerrain(ctx, body);
+			return;
+		}
+		if (label === 'no-draw-tree') {
+			if (!this.drawBodyImage(ctx, body, 'noDrawTree')) this.drawTree(ctx, body);
+			return;
+		}
+		if (label === 'no-draw-rock') {
+			if (!this.drawBodyImage(ctx, body, 'noDrawRock')) this.drawPolygon(ctx, body, '#64748b', '#334155', 2);
+			return;
 		}
 		if (label === 'drawing') {
 			this.drawDrawingBody(ctx, body);
@@ -254,7 +322,10 @@ export class CanvasRenderer {
 			asset === 'acid' ||
 			asset === 'ice' ||
 			asset === 'stone' ||
-			asset === 'rollingBoulder'
+			asset === 'groundCross' ||
+			asset === 'dirtWall' ||
+			asset === 'stonePillar' ||
+			(asset === 'rollingBoulder' && this.skin.id !== 'classic')
 		) {
 			// 이미지젠 시트는 흰 배경으로 분리했다. multiply를 사용하면 흰 여백이 게임 배경을 덮지 않는다.
 			ctx.globalCompositeOperation = 'multiply';
@@ -262,6 +333,32 @@ export class CanvasRenderer {
 		ctx.drawImage(image, -width / 2, -height / 2, width, height);
 		ctx.restore();
 		return true;
+	}
+
+	private drawExplosions(ctx: CanvasRenderingContext2D, timestamp: number): void {
+		this.explosions = this.explosions.filter((effect) => timestamp - effect.startedAt < effect.durationMs);
+		for (const effect of this.explosions) {
+			const progress = Math.max(0, Math.min(1, (timestamp - effect.startedAt) / effect.durationMs));
+			const size = 54 + progress * 106;
+			ctx.save();
+			ctx.globalAlpha = Math.max(0, 1 - progress * progress);
+			ctx.translate(effect.point.x, effect.point.y);
+			ctx.rotate(progress * 0.22);
+			const image = this.getImage('explosion');
+			if (image) {
+				ctx.drawImage(image, -size / 2, -size / 2, size, size);
+			} else {
+				const gradient = ctx.createRadialGradient(0, 0, 4, 0, 0, size / 2);
+				gradient.addColorStop(0, '#fff7cc');
+				gradient.addColorStop(0.4, '#fbbf24');
+				gradient.addColorStop(1, 'rgba(249, 115, 22, 0)');
+				ctx.fillStyle = gradient;
+				ctx.beginPath();
+				ctx.arc(0, 0, size / 2, 0, Math.PI * 2);
+				ctx.fill();
+			}
+			ctx.restore();
+		}
 	}
 
 	private drawDrawingBody(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
@@ -487,39 +584,71 @@ export class CanvasRenderer {
 	}
 
 	private drawWater(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
-		this.drawHazardPool(ctx, body, '#38bdf8', '#0369a1', '#e0f2fe');
+		if (this.drawBodyImage(ctx, body, 'water')) return;
+		this.drawHazardPool(ctx, body, '#38bdf8', '#0369a1', '#e0f2fe', '#0ea5e9');
 	}
 
 	private drawLava(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
-		this.drawHazardPool(ctx, body, '#fb923c', '#9a3412', '#fed7aa');
+		if (this.drawBodyImage(ctx, body, 'lava')) return;
+		this.drawHazardPool(ctx, body, '#fb923c', '#9a3412', '#fde047', '#f97316');
+	}
+
+	private drawAcid(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
+		if (this.drawBodyImage(ctx, body, 'acid')) return;
+		this.drawHazardPool(ctx, body, '#a3e635', '#3f6212', '#ecfccb', '#65a30d');
 	}
 
 	private drawBrick(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
+		this.drawBlockTerrain(ctx, body, 'dirt');
+	}
+
+	private drawGrassBlockTerrain(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
+		this.drawBlockTerrain(ctx, body, 'grass');
+	}
+
+	private drawBlockTerrain(ctx: CanvasRenderingContext2D, body: Matter.Body, variant: 'dirt' | 'grass'): void {
 		const { width, height } = getBodySize(body);
+		const tile = Math.max(12, Math.min(22, Math.min(width, height) / 2));
+		const left = -width / 2;
+		const top = -height / 2;
 		ctx.save();
 		ctx.translate(body.position.x, body.position.y);
 		ctx.rotate(body.angle);
-		ctx.fillStyle = '#b96b38';
-		ctx.strokeStyle = '#7c2d12';
-		ctx.lineWidth = 2;
-		ctx.fillRect(-width / 2, -height / 2, width, height);
-		ctx.strokeRect(-width / 2, -height / 2, width, height);
 
-		ctx.strokeStyle = 'rgba(124, 45, 18, 0.55)';
-		ctx.lineWidth = 1;
-		const rowHeight = 16;
-		for (let y = -height / 2 + rowHeight; y < height / 2; y += rowHeight) {
-			ctx.beginPath();
-			ctx.moveTo(-width / 2, y);
-			ctx.lineTo(width / 2, y);
-			ctx.stroke();
+		for (let row = 0, y = top; y < top + height - 0.1; row += 1, y += tile) {
+			const rowHeight = Math.min(tile, top + height - y);
+			const offset = row % 2 === 0 ? 0 : tile / 2;
+			for (let x = left - offset; x < left + width - 0.1; x += tile) {
+				const cellX = Math.max(left, x);
+				const cellWidth = Math.min(tile, left + width - cellX);
+				ctx.fillStyle = row % 2 === 0 ? '#c9783d' : '#b96532';
+				ctx.strokeStyle = '#7c3f20';
+				ctx.lineWidth = 1.2;
+				if (typeof ctx.roundRect === 'function') {
+					ctx.beginPath();
+					ctx.roundRect(cellX + 0.7, y + 0.7, Math.max(1, cellWidth - 1.4), Math.max(1, rowHeight - 1.4), Math.min(4, tile * 0.16));
+					ctx.fill();
+					ctx.stroke();
+				} else {
+					ctx.fillRect(cellX + 0.7, y + 0.7, Math.max(1, cellWidth - 1.4), Math.max(1, rowHeight - 1.4));
+					ctx.strokeRect(cellX + 0.7, y + 0.7, Math.max(1, cellWidth - 1.4), Math.max(1, rowHeight - 1.4));
+				}
+			}
 		}
-		for (let y = -height / 2; y < height / 2; y += rowHeight) {
-			const offset = Math.round((y + height / 2) / rowHeight) % 2 === 0 ? 0 : 18;
-			for (let x = -width / 2 + offset; x < width / 2; x += 36) {
+
+		if (variant === 'grass') {
+			const grassHeight = Math.min(Math.max(8, tile * 0.52), height);
+			ctx.fillStyle = '#73c83b';
+			ctx.strokeStyle = '#3f8f2f';
+			ctx.lineWidth = 1.5;
+			ctx.fillRect(left, top, width, grassHeight);
+			ctx.strokeRect(left, top, width, grassHeight);
+			ctx.strokeStyle = 'rgba(220, 255, 137, 0.8)';
+			ctx.lineWidth = 1.4;
+			for (let x = left + 8; x < left + width - 4; x += 16) {
 				ctx.beginPath();
-				ctx.moveTo(x, y);
-				ctx.lineTo(x, Math.min(height / 2, y + rowHeight));
+				ctx.moveTo(x, top + grassHeight * 0.56);
+				ctx.lineTo(Math.min(left + width - 4, x + 7), top + grassHeight * 0.56);
 				ctx.stroke();
 			}
 		}
@@ -554,23 +683,33 @@ export class CanvasRenderer {
 		ctx.restore();
 	}
 
-	private drawHazardPool(ctx: CanvasRenderingContext2D, body: Matter.Body, fill: string, stroke: string, highlight: string): void {
+	private drawHazardPool(ctx: CanvasRenderingContext2D, body: Matter.Body, fill: string, stroke: string, highlight: string, shade: string): void {
 		const { width, height } = getBodySize(body);
 		ctx.save();
 		ctx.translate(body.position.x, body.position.y);
 		ctx.rotate(body.angle);
+		const tile = Math.max(12, Math.min(22, Math.min(width, height)));
+		const left = -width / 2;
+		const top = -height / 2;
 		ctx.fillStyle = fill;
+		ctx.fillRect(left, top, width, height);
 		ctx.strokeStyle = stroke;
 		ctx.lineWidth = 2;
-
-		ctx.beginPath();
-		if (typeof ctx.roundRect === 'function') {
-			ctx.roundRect(-width / 2, -height / 2, width, height, Math.min(14, height / 2));
-		} else {
-			ctx.rect(-width / 2, -height / 2, width, height);
+		ctx.strokeRect(left, top, width, height);
+		ctx.strokeStyle = shade;
+		ctx.lineWidth = 1;
+		for (let x = left + tile; x < left + width; x += tile) {
+			ctx.beginPath();
+			ctx.moveTo(x, top + tile * 0.44);
+			ctx.lineTo(x, top + height);
+			ctx.stroke();
 		}
-		ctx.fill();
-		ctx.stroke();
+		for (let y = top + tile; y < top + height; y += tile) {
+			ctx.beginPath();
+			ctx.moveTo(left, y);
+			ctx.lineTo(left + width, y);
+			ctx.stroke();
+		}
 
 		ctx.strokeStyle = highlight;
 		ctx.lineWidth = 2;
@@ -582,6 +721,50 @@ export class CanvasRenderer {
 			ctx.quadraticCurveTo(x + 27, -height * 0.04, x + 36, -height * 0.18);
 			ctx.stroke();
 		}
+		ctx.restore();
+	}
+
+	private drawNoDrawZone(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
+		const { width, height } = getBodySize(body);
+		ctx.save();
+		ctx.translate(body.position.x, body.position.y);
+		ctx.rotate(body.angle);
+
+		// 지형 자체는 읽히되, 금지 아이콘을 그려 플레이 화면을 오염시키지 않는다.
+		ctx.fillStyle = 'rgba(71, 85, 105, 0.18)';
+		ctx.strokeStyle = 'rgba(71, 85, 105, 0.55)';
+		ctx.lineWidth = 2;
+		ctx.setLineDash([6, 4]);
+
+		ctx.beginPath();
+		if (typeof ctx.roundRect === 'function') {
+			ctx.roundRect(-width / 2, -height / 2, width, height, Math.min(8, height / 2));
+		} else {
+			ctx.rect(-width / 2, -height / 2, width, height);
+		}
+		ctx.fill();
+		ctx.stroke();
+		ctx.setLineDash([]);
+
+		ctx.restore();
+	}
+
+	private drawTree(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
+		const { width, height } = getBodySize(body);
+		ctx.save();
+		ctx.translate(body.position.x, body.position.y);
+		ctx.rotate(body.angle);
+		ctx.fillStyle = '#6b3f1d';
+		ctx.fillRect(-width * 0.12, height * 0.05, width * 0.24, height * 0.42);
+		ctx.fillStyle = '#3f8f52';
+		ctx.strokeStyle = '#1f5f38';
+		ctx.lineWidth = 2;
+		ctx.beginPath();
+		ctx.arc(0, -height * 0.16, width * 0.34, 0, Math.PI * 2);
+		ctx.arc(-width * 0.24, height * 0.02, width * 0.26, 0, Math.PI * 2);
+		ctx.arc(width * 0.24, height * 0.02, width * 0.26, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.stroke();
 		ctx.restore();
 	}
 

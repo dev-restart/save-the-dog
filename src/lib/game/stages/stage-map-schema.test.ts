@@ -66,4 +66,29 @@ describe('stage map share schema', () => {
 		expect(objectKinds).toContain('ice');
 		expect(objectKinds).toContain('stone');
 	});
+
+	it('지형 타일과 회전 각도는 맵 공유 왕복에서 보존된다', () => {
+		const document = createEmptyStageMapDocument();
+		document.objects.push({ id: 'tree-1', kind: 'no-draw-tree', x: 120, y: 420, width: 60, height: 100, angle: 0.35 });
+		document.objects.push({ id: 'terrain-1', kind: 'terrain-block', x: 180, y: 540, width: 60, height: 60 });
+		const restored = decodeStageMapShare(encodeStageMapShare(document));
+		const tree = restored.objects.find((object) => object.id === 'tree-1');
+		const terrainBlock = restored.objects.find((object) => object.id === 'terrain-1');
+
+		expect(tree?.kind).toBe('no-draw-tree');
+		expect(tree?.angle).toBe(0.35);
+		expect(terrainBlock).toMatchObject({ kind: 'terrain-block', width: 60, height: 60 });
+	});
+
+	it('알 수 없는 오브젝트 종류와 잘못된 각도를 저장 전에 거부한다', () => {
+		const document = createEmptyStageMapDocument();
+		const invalid = document.objects[0];
+		if (!invalid) throw new Error('기본 강아지 오브젝트가 없습니다.');
+		(invalid as unknown as { kind: string }).kind = 'unknown-object';
+		document.objects.push({ id: 'bad-angle', kind: 'wood', x: 100, y: 100, width: 80, height: 16, angle: Number.NaN });
+
+		const errors = validateStageMapDocument(document);
+		expect(errors).toContain('지원하지 않는 오브젝트 종류입니다.');
+		expect(errors).toContain('wood 각도를 확인하세요.');
+	});
 });

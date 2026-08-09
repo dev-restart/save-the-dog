@@ -53,6 +53,8 @@ export interface CustomMapRecord {
 	document: StageMapDocument;
 	createdAt: number;
 	updatedAt: number;
+	onlineMapId?: string;
+	sourceOnlineMapId?: string;
 }
 
 export interface GamePersistenceSnapshot {
@@ -189,7 +191,7 @@ export class GamePersistence {
 		return (await readRecord<StageResultRecord>(database, STAGE_RESULTS_STORE, stageId)) ?? null;
 	}
 
-	saveCustomMap(document: StageMapDocument, id = createMapId()): Promise<CustomMapRecord> {
+	saveCustomMap(document: StageMapDocument, id = createMapId(), onlineMapId?: string, sourceOnlineMapId?: string | null): Promise<CustomMapRecord> {
 		return this.enqueueWrite(async (database) => {
 			const existing = await readRecord<CustomMapRecord>(database, CUSTOM_MAPS_STORE, id);
 			const now = Date.now();
@@ -199,7 +201,9 @@ export class GamePersistence {
 				title: storedDocument.title.trim() || `사용자 맵 ${storedDocument.stageId}`,
 				document: storedDocument,
 				createdAt: existing?.createdAt ?? now,
-				updatedAt: now
+				updatedAt: now,
+				onlineMapId: onlineMapId ?? existing?.onlineMapId,
+				sourceOnlineMapId: sourceOnlineMapId === null ? undefined : sourceOnlineMapId ?? existing?.sourceOnlineMapId
 			};
 			await putRecord(database, CUSTOM_MAPS_STORE, record);
 			return record;

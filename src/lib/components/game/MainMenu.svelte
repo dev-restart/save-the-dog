@@ -15,9 +15,14 @@
   } from "@lucide/svelte";
   import { Button } from "$lib/components/ui/button/index.js";
   import { SKINS } from "$lib/game/skins.js";
-  import type { SkinId } from "$lib/game/types.js";
+  import { CAMPAIGN_CHAPTERS, CAMPAIGN_STAGE_COUNT } from "$lib/game/stages/campaign.js";
+  import { CHALLENGE_STAGE_MAX } from "$lib/game/stages/challenge.js";
+  import { getStage } from "$lib/game/stages/index.js";
+  import type { SkinId, StageData } from "$lib/game/types.js";
+  import StageThumbnail from "./StageThumbnail.svelte";
 
   interface Props {
+    nickname?: string;
     highestStage: number;
     totalClears: number;
     totalStars: number;
@@ -36,9 +41,11 @@
     onSfxChange: (enabled: boolean) => void;
     onMapCreate: () => void;
     onMapLibrary: () => void;
+    onLeaderboard?: () => void;
   }
 
   let {
+    nickname,
     highestStage,
     totalClears,
     totalStars,
@@ -57,6 +64,7 @@
     onSfxChange,
     onMapCreate,
     onMapLibrary,
+    onLeaderboard,
   }: Props = $props();
 
   let selectedSkin = $derived(
@@ -68,15 +76,39 @@
   let introTitleSrc = $derived(selectedSkin.menu.introTitle);
   let showStageMap = $state(false);
   let showSettings = $state(false);
-  let continueStage = $derived(Math.max(1, highestStage));
-  let stageMapLimit = $derived(Math.max(20, continueStage + 4));
+  let continueStage = $derived(Math.min(CHALLENGE_STAGE_MAX, Math.max(1, highestStage)));
+  let stageMapLimit = CAMPAIGN_STAGE_COUNT;
   let stageMapItems = $derived(
     Array.from({ length: stageMapLimit }, (_, index) => index + 1),
+  );
+  let selectedChapterId = $state(1);
+  let stageChapters = $derived(
+    CAMPAIGN_CHAPTERS.map((chapter) => ({
+      ...chapter,
+      description: chapter.mechanic,
+      stageIds: stageMapItems.slice(chapter.startStage - 1, chapter.endStage),
+    })),
+  );
+  let activeChapter = $derived(
+    stageChapters.find((chapter) => chapter.id === selectedChapterId) ?? stageChapters[0],
   );
 
   function selectStage(stage: number): void {
     if (stage > highestStage) return;
     onStageSelect(stage);
+  }
+
+  function stageChallenge(stage: StageData): string {
+    return stage.dangerLabel ?? stage.difficultyLabel ?? "보호막";
+  }
+
+  function selectChapter(chapterId: number): void {
+    selectedChapterId = chapterId;
+  }
+
+  function openStageMap(): void {
+    selectedChapterId = Math.min(10, Math.max(1, Math.ceil(continueStage / 10)));
+    showStageMap = true;
   }
 
   function closeSettings(): void {
@@ -109,7 +141,7 @@
         class="hud-chip hud-chip-button"
         type="button"
         aria-expanded={showStageMap}
-        onclick={() => (showStageMap = true)}
+        onclick={openStageMap}
       >
         <Trophy class="size-3.5 text-amber-500" />
         <span>{continueStage}단계</span>
@@ -122,6 +154,7 @@
         <Star class="size-3.5 fill-amber-400 text-amber-500" />
         <span>별 {totalStars.toFixed(1)}</span>
       </div>
+      {#if nickname}<div class="hud-chip nickname-chip" title="변경할 수 없는 닉네임">#{nickname}</div>{/if}
     </div>
     <button
       class="settings-button"
@@ -230,6 +263,15 @@
             </Button>
           </div>
         </div>
+        <div class="settings-map-section" aria-label="온라인 커뮤니티">
+          <div class="settings-title">온라인 커뮤니티</div>
+          <div class="settings-description">닉네임으로 공유 지도와 플레이어 랭킹을 확인합니다.</div>
+          <div class="settings-map-actions">
+            <Button variant="secondary" class="settings-map-button h-10 text-xs font-black" onclick={onLeaderboard} disabled={!onLeaderboard}>
+              <Trophy class="size-4" /> 플레이어 랭킹
+            </Button>
+          </div>
+        </div>
         <div class="settings-item">
           <div>
             <div class="settings-title">배경음악</div>
@@ -296,7 +338,7 @@
               스테이지 선택
             </div>
             <p class="mt-1 text-[11px] font-semibold text-slate-600">
-              열린 단계만 선택할 수 있습니다.
+              열린 단계만 선택할 수 있습니다. · 진행 {Math.min(CAMPAIGN_STAGE_COUNT, highestStage)} / {CAMPAIGN_STAGE_COUNT}
             </p>
           </div>
           <Button
@@ -308,30 +350,59 @@
             <X class="size-4" />
           </Button>
         </div>
-        <div class="stage-grid">
-          {#each stageMapItems as stageId (stageId)}
-            {@const unlocked = stageId <= highestStage}
-            {@const stars = stageStars[String(stageId)] ?? 0}
-            <button
-              type="button"
-              class="stage-node"
-              class:stage-node-current={stageId === continueStage}
-              class:stage-node-cleared={stars > 0 || stageId < highestStage}
-              class:stage-node-locked={!unlocked}
-              disabled={!unlocked}
-              aria-label={unlocked
-                ? `${stageId}단계 선택`
-                : `${stageId}단계 잠김`}
-              onclick={() => selectStage(stageId)}
-            >
-              {#if unlocked}
-                <span class="stage-number">{stageId}</span>
-                <span class="stage-stars">★ {stars.toFixed(1)}</span>
-              {:else}
-                <Lock class="size-4" />
-              {/if}
-            </button>
-          {/each}
+        <div class="stage-chapters">
+          <div class="chapter-tabs" role="tablist" aria-label="챕터 선택">
+            {#each stageChapters as chapter (chapter.id)}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={chapter.id === selectedChapterId}
+                class:chapter-tab-active={chapter.id === selectedChapterId}
+                onclick={() => selectChapter(chapter.id)}
+              >
+                <span>CH {chapter.id}</span>
+                <strong>{chapter.title}</strong>
+              </button>
+            {/each}
+          </div>
+          {#if activeChapter}
+            <section class="stage-chapter" aria-labelledby={`chapter-${activeChapter.id}`}>
+              <div class="stage-chapter-heading">
+                <div>
+                  <strong id={`chapter-${activeChapter.id}`}>{activeChapter.title}</strong>
+                  <span>{activeChapter.subtitle} · {activeChapter.startStage}–{activeChapter.endStage}단계</span>
+                </div>
+                <small>{activeChapter.mechanic}</small>
+              </div>
+              <div class="stage-grid">
+                {#each activeChapter.stageIds as stageId (stageId)}
+                  {@const unlocked = stageId <= highestStage}
+                  {@const stars = stageStars[String(stageId)] ?? 0}
+                  {@const stageData = getStage(stageId)}
+                  <button
+                    type="button"
+                    class="stage-node"
+                    class:stage-node-current={stageId === continueStage}
+                    class:stage-node-cleared={stars > 0 || stageId < highestStage}
+                    class:stage-node-locked={!unlocked}
+                    disabled={!unlocked}
+                    aria-label={unlocked
+                      ? `${stageId}단계, ${stageData.objectiveLabel ?? "강아지 보호"}, ${stageChallenge(stageData)}${stageId === continueStage ? ", 현재 단계" : ""}`
+                      : `${stageId}단계 잠김`}
+                    onclick={() => selectStage(stageId)}
+                  >
+                    <StageThumbnail stage={stageData} {skin} />
+                    <span class="stage-node-row">
+                      <span class="stage-number">{stageId}단계 {stageId === continueStage ? "· 현재" : ""}</span>
+                      {#if unlocked}<span class="stage-stars">★ {stars.toFixed(1)}</span>{:else}<span class="stage-locked-label">잠김</span><Lock class="size-3.5" />{/if}
+                    </span>
+                    <span class="stage-objective">{stageData.objectiveLabel ?? "강아지 보호"}</span>
+                    <span class="stage-challenge">{stageChallenge(stageData)}</span>
+                  </button>
+                {/each}
+              </div>
+            </section>
+          {/if}
         </div>
       </div>
     </div>
@@ -453,6 +524,12 @@
     transform: scale(0.96);
   }
 
+  .nickname-chip {
+    max-width: 8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .settings-button {
     display: inline-flex;
     width: 42px;
@@ -568,7 +645,7 @@
 
   .stage-map-panel {
     width: min(100%, 410px);
-    max-height: min(70vh, 540px);
+    max-height: min(86vh, 720px);
     overflow: auto;
     border: 1px solid var(--panel-border);
     border-radius: 22px;
@@ -580,17 +657,29 @@
 
   .stage-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.45rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
   }
+
+  .stage-chapters { display: grid; gap: 0.8rem; }
+  .stage-chapter { display: grid; gap: 0.4rem; }
+  .chapter-tabs { display: flex; gap: 0.35rem; overflow-x: auto; padding: 0.1rem 0.05rem 0.35rem; scrollbar-width: thin; }
+  .chapter-tabs button { display: grid; min-width: 72px; gap: 0.12rem; border: 1px solid rgba(30, 64, 96, 0.14); border-radius: 10px; background: rgba(239, 247, 255, 0.78); padding: 0.38rem 0.45rem; color: #55708c; text-align: left; }
+  .chapter-tabs button span { font-size: 0.5rem; font-weight: 950; letter-spacing: 0.08em; }
+  .chapter-tabs button strong { overflow: hidden; font-size: 0.6rem; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+  .chapter-tabs button.chapter-tab-active { border-color: #f3b644; background: #fff4c9; color: #6d4511; box-shadow: 0 3px 8px rgba(173, 116, 21, 0.14); }
+  .stage-chapter-heading { display: flex; align-items: end; justify-content: space-between; gap: 0.5rem; color: #42536a; }
+  .stage-chapter-heading > div { display: grid; gap: 0.1rem; min-width: 0; }
+  .stage-chapter-heading strong { color: #1e293b; font-size: 0.82rem; font-weight: 950; }
+  .stage-chapter-heading span, .stage-chapter-heading small { overflow: hidden; color: #64748b; font-size: 0.6rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+  .stage-chapter-heading small { max-width: 46%; text-align: right; }
 
   .stage-node {
     display: grid;
-    min-height: 52px;
-    place-items: center;
-    gap: 0.1rem;
+    min-height: 132px;
+    gap: 0.28rem;
     border: 1px solid rgba(15, 23, 42, 0.1);
-    border-radius: 14px;
+    border-radius: 12px;
     background: rgba(255, 255, 255, 0.8);
     color: #1e293b;
     font-weight: 900;
@@ -616,15 +705,24 @@
   }
 
   .stage-number {
-    font-size: 0.9rem;
+    font-size: 0.72rem;
     line-height: 1;
   }
 
   .stage-stars {
-    font-size: 0.58rem;
+    font-size: 0.6rem;
     line-height: 1;
     opacity: 0.82;
   }
+
+  .stage-locked-label { font-size: 0.55rem; font-weight: 900; }
+
+  .stage-node-row { display: flex; align-items: center; justify-content: space-between; gap: 0.2rem; padding: 0 0.45rem; }
+  .stage-objective { overflow: hidden; padding: 0 0.45rem; color: #334155; font-size: 0.58rem; font-weight: 900; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+  .stage-challenge { overflow: hidden; padding: 0 0.45rem 0.38rem; color: #64748b; font-size: 0.53rem; font-weight: 850; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+  .stage-node-current .stage-challenge { color: rgba(255,255,255,.74); }
+  .stage-node-current .stage-objective { color: rgba(255,255,255,.9); }
+  .stage-node-locked .stage-objective, .stage-node-locked .stage-challenge { color: #94a3b8; }
 
   .title-zone {
     margin-top: clamp(1.2rem, 4vh, 3rem);

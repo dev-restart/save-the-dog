@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getStage } from './index.js';
 import { generateStage } from './generate-stage.js';
+import { CAMPAIGN_CHAPTERS, CAMPAIGN_STAGE_COUNT, getCampaignChapter } from './campaign.js';
 
 describe('generateStage', () => {
 	it('21단계 이후에도 같은 단계는 같은 지형 퍼즐로 생성한다', () => {
@@ -47,6 +48,40 @@ describe('generateStage', () => {
 		expect(stage.objectiveLabel).toBeTruthy();
 		expect(stage.objectiveHint).toContain('덮개');
 		expect(stage.dangerLabel).toContain('벌');
+	});
+
+	it('31~100단계는 7개 후반 챕터의 결정적인 퍼즐 변형으로 생성된다', () => {
+		const stages = Array.from({ length: CAMPAIGN_STAGE_COUNT - 30 }, (_, index) => getStage(index + 31));
+		const fingerprints = new Set(stages.map((stage) => JSON.stringify({ dog: stage.dog, hives: stage.hives, obstacles: stage.obstacles })));
+		const obstacleTypes = new Set(stages.flatMap((stage) => stage.obstacles.map((obstacle) => obstacle.type)));
+
+		expect(stages).toHaveLength(70);
+		expect(fingerprints).toHaveLength(70);
+		expect(new Set(stages.map((stage) => getCampaignChapter(stage.id).id))).toEqual(new Set([4, 5, 6, 7, 8, 9, 10]));
+		for (const type of ['bomb', 'rolling-boulder', 'no-draw-zone', 'no-draw-tree', 'no-draw-rock', 'lava', 'acid', 'ice'] as const) {
+			expect(obstacleTypes.has(type), `후반 캠페인에 ${type}이(가) 있어야 합니다`).toBe(true);
+		}
+	});
+
+	it('1~100단계는 플레이 가능한 기본 맵 계약을 모두 만족한다', () => {
+		for (let stageId = 1; stageId <= CAMPAIGN_STAGE_COUNT; stageId += 1) {
+			const stage = getStage(stageId);
+			expect(stage.id, `stage ${stageId} id`).toBe(stageId);
+			expect(stage.hives.length, `stage ${stageId} hives`).toBeGreaterThanOrEqual(1);
+			expect(stage.hives.length, `stage ${stageId} hives`).toBeLessThanOrEqual(3);
+			expect(stage.obstacles.some((obstacle) => obstacle.type === 'ground'), `stage ${stageId} ground`).toBe(true);
+			expect(stage.objectiveLabel, `stage ${stageId} objective`).toBeTruthy();
+			expect(stage.objectiveHint, `stage ${stageId} hint`).toBeTruthy();
+			expect(stage.dangerLabel, `stage ${stageId} danger`).toBeTruthy();
+			expect(stage.survivalMs, `stage ${stageId} survival`).toBe(10000);
+			for (const obstacle of stage.obstacles) {
+				expect(obstacle.x - obstacle.width / 2, `stage ${stageId} obstacle left`).toBeGreaterThanOrEqual(-20);
+				expect(obstacle.x + obstacle.width / 2, `stage ${stageId} obstacle right`).toBeLessThanOrEqual(410);
+				expect(obstacle.y - obstacle.height / 2, `stage ${stageId} obstacle top`).toBeGreaterThanOrEqual(-20);
+				expect(obstacle.y + obstacle.height / 2, `stage ${stageId} obstacle bottom`).toBeLessThanOrEqual(730);
+			}
+		}
+		expect(CAMPAIGN_CHAPTERS).toHaveLength(10);
 	});
 });
 
@@ -118,6 +153,17 @@ describe('static stage puzzle maps', () => {
 		}
 		expect(getStage(21).environment).toBe('forest');
 		expect(getStage(30).hives).toHaveLength(3);
+	});
+
+	it('24단계는 강아지보다 높은 왼쪽 경사에서 굴림돌이 안전실 방향으로 내려온다', () => {
+		const stage = getStage(24);
+		const boulder = stage.obstacles.find((obstacle) => obstacle.type === 'rolling-boulder');
+		const slope = stage.obstacles.find((obstacle) => obstacle.type === 'wood' && obstacle.angle !== undefined);
+
+		expect(boulder).toMatchObject({ x: 186, y: 304 });
+		expect(slope).toMatchObject({ x: 150, y: 370, angle: -0.24 });
+		expect(boulder?.y).toBeLessThan(stage.dog.y);
+		expect(boulder?.x).toBeGreaterThan(stage.dog.x);
 	});
 
 	it('물이나 용암이 가시와 겹쳐 보이지 않는다', () => {

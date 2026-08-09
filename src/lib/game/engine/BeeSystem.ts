@@ -3,6 +3,7 @@ import Matter from 'matter-js';
 // BeeSystem은 Matter.js 월드와 벌 엔티티 생명주기만 조율한다.
 // 경로 탐색은 BeeNavigation, steering은 BeeSteering, 방어선 압박은 BeeCombat으로 분리해 유지보수 범위를 줄인다.
 import { PHYSICS } from '../constants.js';
+import { createSeededRandom } from '../seeded-random.js';
 import type { BeeAttackStyle, CanvasSize, HiveData, Point, StageDifficulty } from '../types.js';
 import { ObjectFactory } from './ObjectFactory.js';
 import { BeeAiScheduler } from './BeeAiScheduler.js';
@@ -13,11 +14,27 @@ import { BeeSpawner } from './BeeSpawner.js';
 import {
 	enforceBeeDrawingBarriers,
 	isBeeSeparatedFromDogByDrawing,
+	movePointOutsideClosedDrawing,
 	rememberBeePositions
 } from './BeeBarrierGuard.js';
 import { chooseBeeSteeringDirection } from './BeeSteering.js';
 
-const NAVIGATION_LABELS = new Set(['drawing', 'ground', 'platform', 'wall', 'brick', 'wood', 'ice', 'stone', 'rolling-boulder']);
+const NAVIGATION_LABELS = new Set([
+	'drawing',
+	'ground',
+	'platform',
+	'wall',
+	'brick',
+	'terrain-block',
+	'wood',
+	'ice',
+	'stone',
+	'rolling-boulder',
+	'no-draw-zone',
+	'no-draw-ground',
+	'no-draw-tree',
+	'no-draw-rock'
+]);
 const BEE_AI_UPDATE_INTERVAL_MS = 60;
 
 interface WorldBodyCache {
@@ -45,6 +62,7 @@ export class BeeSystem {
 	private running = false;
 	private routeClockMs = 0;
 	private aiCursor = 0;
+	private random: () => number;
 
 
 	constructor(
@@ -52,12 +70,14 @@ export class BeeSystem {
 		private world: Matter.World,
 		private size: CanvasSize,
 		private stageId = 1,
-		difficulty?: StageDifficulty
+		difficulty?: StageDifficulty,
+		seed = `stage-v1-${stageId}`
 	) {
 		this.spawner = new BeeSpawner(hives);
 		this.profile = createBeeDifficultyProfile(stageId, difficulty);
 		this.combat = new BeeCombat(world, this.profile);
 		this.navigation = new BeeNavigation(size, this.profile, stageId);
+		this.random = createSeededRandom(seed);
 	}
 
 	start(): void {
@@ -82,6 +102,12 @@ export class BeeSystem {
 			this.refreshBodyCache();
 			this.refreshScheduledBeeDirections(dogBody);
 		}
+
+		// 벌 전투 컨텍스트를 갱신한다. 경로 차단 판정과 전체 벌 목록을 전달한다.
+		this.combat.setContext(
+			this.navigation.findLineBlocker.bind(this.navigation),
+			this.bees
+		);
 
 		for (const bee of this.bees) {
 			if (!this.beeDirectionById.has(bee.id)) {
@@ -137,9 +163,14 @@ export class BeeSystem {
 
 	private spawnBee(hive: HiveData): void {
 		const bee = ObjectFactory.createBee({ x: hive.x, y: hive.y }, this.size);
+		let spawnPosition = bee.position;
+		for (const drawing of this.bodyCache.drawings) {
+			spawnPosition = movePointOutsideClosedDrawing(spawnPosition, drawing);
+		}
+		Matter.Body.setPosition(bee, spawnPosition);
 		Matter.Body.setVelocity(bee, {
-			x: (Math.random() - 0.5) * 2,
-			y: Math.random() * 2
+			x: (this.random() - 0.5) * 2,
+			y: this.random() * 2
 		});
 		Matter.Composite.add(this.world, bee);
 		this.beeForceById.set(bee.id, hive.beeForce ?? 0.002);

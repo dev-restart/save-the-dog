@@ -38,6 +38,7 @@ export type ObstacleType =
 	| 'water'
 	| 'lava'
 	| 'brick'
+	| 'terrain-block'
 	| 'wood'
 	| 'bomb'
 	| 'boulder'
@@ -45,7 +46,11 @@ export type ObstacleType =
 	| 'acid'
 	| 'ice'
 	| 'stone'
-	| 'rolling-boulder';
+	| 'rolling-boulder'
+	| 'no-draw-zone'
+	| 'no-draw-ground'
+	| 'no-draw-tree'
+	| 'no-draw-rock';
 export type BeeAttackStyle = 'direct' | 'flank-left' | 'flank-right' | 'breaker';
 export type StageDesignType =
 	| 'basic-cover'
@@ -80,6 +85,7 @@ export interface HiveData {
 
 export interface StageData {
 	id: number;
+	seed?: string;
 	dog: Point;
 	hives: HiveData[];
 	obstacles: ObstacleData[];
@@ -120,6 +126,7 @@ export type BodyLabel =
 	| 'water'
 	| 'lava'
 	| 'brick'
+	| 'terrain-block'
 	| 'wood'
 	| 'bomb'
 	| 'boulder'
@@ -130,4 +137,8 @@ export type BodyLabel =
 	| 'rolling-boulder'
 	| 'drawing'
 	| 'wall'
-	| 'deadzone';
+	| 'deadzone'
+	| 'no-draw-zone'
+	| 'no-draw-ground'
+	| 'no-draw-tree'
+	| 'no-draw-rock';

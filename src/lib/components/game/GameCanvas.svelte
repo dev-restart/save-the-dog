@@ -1,17 +1,19 @@
 <script lang="ts">
 	import { GameEngine } from '$lib/game/engine/GameEngine.js';
 	import type { StageScore } from '$lib/game/scoring.js';
+	import type { StageReplay } from '$lib/game/replay.js';
 	import type { GamePhase, Point, SkinId, StageData } from '$lib/game/types.js';
 
 	interface Props {
 		stage: StageData;
 		resetKey: number;
 		skin: SkinId;
+		simulationSpeed: 1 | 2 | 3;
 		onPhaseChange: (phase: GamePhase) => void;
 		onInkChange: (inkRatio: number) => void;
 		onTimerChange: (elapsedMs: number) => void;
-		onCleared: (score: StageScore) => void;
-		onFailed: () => void;
+		onCleared: (score: StageScore, replay: StageReplay) => void;
+		onFailed: (reason?: string) => void;
 		onDogAttacked: () => void;
 		onDrawingAttacked: () => void;
 		onBeeActivityChange: (active: boolean) => void;
@@ -21,6 +23,7 @@
 		stage,
 		resetKey,
 		skin,
+		simulationSpeed,
 		onPhaseChange,
 		onInkChange,
 		onTimerChange,
@@ -32,7 +35,7 @@
 	}: Props = $props();
 
 	let canvas = $state<HTMLCanvasElement | null>(null);
-	let engine: GameEngine | null = null;
+	let engine = $state<GameEngine | null>(null);
 	let activePointerId: number | null = null;
 
 	function pointFromEvent(event: PointerEvent): Point {
@@ -95,6 +98,10 @@
 			instance.destroy();
 			if (engine === instance) engine = null;
 		};
+	});
+
+	$effect(() => {
+		engine?.setSimulationSpeed(simulationSpeed);
 	});
 </script>
 

@@ -44,6 +44,7 @@ const OBSTACLE_TYPES = new Set<ObstacleType>([
 	'water',
 	'lava',
 	'brick',
+	'terrain-block',
 	'wood',
 	'bomb',
 	'boulder',
@@ -51,8 +52,13 @@ const OBSTACLE_TYPES = new Set<ObstacleType>([
 	'acid',
 	'ice',
 	'stone',
-	'rolling-boulder'
+	'rolling-boulder',
+	'no-draw-zone',
+	'no-draw-ground',
+	'no-draw-tree',
+	'no-draw-rock'
 ]);
+const OBJECT_KINDS = new Set<StageMapObjectKind>(['dog', 'hive', ...OBSTACLE_TYPES]);
 
 export type StageMapObjectKind = 'dog' | 'hive' | ObstacleType;
 
@@ -367,9 +373,11 @@ export function validateStageMapDocument(document: StageMapDocument): string[] {
 
 	const objectIds = new Set<string>();
 	for (const object of document.objects) {
-		if (!object.id || objectIds.has(object.id)) errors.push('오브젝트 ID가 중복되었습니다.');
-		objectIds.add(object.id);
-		if (!isFinitePosition(object.x, object.y)) errors.push(`${object.kind} 위치가 지도 범위를 벗어났습니다.`);
+			if (!object.id || objectIds.has(object.id)) errors.push('오브젝트 ID가 중복되었습니다.');
+			objectIds.add(object.id);
+			if (!OBJECT_KINDS.has(object.kind)) errors.push('지원하지 않는 오브젝트 종류입니다.');
+			if (!isFinitePosition(object.x, object.y)) errors.push(`${object.kind} 위치가 지도 범위를 벗어났습니다.`);
+			if (object.angle !== undefined && !Number.isFinite(object.angle)) errors.push(`${object.kind} 각도를 확인하세요.`);
 		if (object.kind === 'hive') {
 			if (!positiveInteger(object.beeCount, 1, 30)) errors.push('벌 수는 1~30 범위에서 지정하세요.');
 			if (!positiveInteger(object.spawnIntervalMs, 120, 2000)) errors.push('벌 생성 간격은 120~2000ms 범위에서 지정하세요.');

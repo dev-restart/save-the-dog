@@ -6,11 +6,15 @@
 	import MainMenu from '$lib/components/game/MainMenu.svelte';
 	import CustomMapLibrary from '$lib/components/game/CustomMapLibrary.svelte';
 	import MapEditor from '$lib/components/game/MapEditor.svelte';
+	import NicknameOnboarding from '$lib/components/game/NicknameOnboarding.svelte';
+	import RankingBoard from '$lib/components/game/RankingBoard.svelte';
 	import ResultOverlay from '$lib/components/game/ResultOverlay.svelte';
 	import { GameAudioManager } from '$lib/game/audio.js';
 	import { GameSessionState } from '$lib/game/state/game-session.svelte.js';
 	import { triggerHaptic } from '$lib/game/haptics.js';
 	import type { StageScore } from '$lib/game/scoring.js';
+	import type { StageReplay } from '$lib/game/replay.js';
+	import { CHALLENGE_STAGE_MAX, isChallengeStage } from '$lib/game/stages/challenge.js';
 	import { getStage } from '$lib/game/stages/index.js';
 	import {
 		cloneStageMapDocument,
@@ -20,29 +24,35 @@
 		type StageMapDocument
 	} from '$lib/game/stages/stage-map-schema.js';
 	import type { CustomMapRecord } from '$lib/game/state/game-persistence.js';
+	import type { OnlineMap, OnlineMapSummary, OnlineIdentity } from '$lib/game/online/types.js';
 	import type { GamePhase, SkinId, StageData } from '$lib/game/types.js';
 
 	const session = new GameSessionState();
 	const audioManager = new GameAudioManager();
 	const MAX_HINT_VIEWS_PER_STAGE = 3;
-	type MenuView = 'menu' | 'library' | 'editor';
+	type MenuView = 'menu' | 'library' | 'editor' | 'ranking';
 
 	let resetKey = $state(0);
+	let simulationSpeed = $state<1 | 2 | 3>(1);
 	let hintViewsRemaining = $state(MAX_HINT_VIEWS_PER_STAGE);
 	let showHint = $state(false);
 	let menuView = $state<MenuView>('menu');
+	let onlineState = $state<'loading' | 'ready' | 'onboarding' | 'offline'>('loading');
+	let onlineIdentity = $state<OnlineIdentity | null>(null);
 	let customMaps = $state<CustomMapRecord[]>([]);
 	let editorDocument = $state<StageMapDocument>(createEmptyStageMapDocument());
 	let editorMapId = $state<string | undefined>(undefined);
 	let editorKey = $state(0);
 	let importedMapTitle = $state('');
 	let customStage = $state<StageData | null>(null);
+	let activeCustomOnlineMapId = $state<string | null>(null);
 	let stage = $derived(customStage ?? getStage(session.currentStage));
 
 	onMount(() => {
 		let mounted = true;
 		void session.load().then(async () => {
 			if (!mounted) return;
+			await initializeOnlineIdentity();
 			await refreshCustomMaps();
 			await importMapFromUrl();
 			if (!mounted) return;
@@ -65,6 +75,34 @@
 		};
 	});
 
+	async function initializeOnlineIdentity(): Promise<void> {
+		try {
+			const controller = new AbortController();
+			const timeout = window.setTimeout(() => controller.abort(), 2500);
+			const response = await fetch('/api/identity', { cache: 'no-store', signal: controller.signal });
+			window.clearTimeout(timeout);
+			const body = (await response.json()) as OnlineIdentity & { message?: string };
+			if (!response.ok) throw new Error(body.message ?? '온라인 기능을 사용할 수 없습니다.');
+			onlineIdentity = body;
+			onlineState = body.registered ? 'ready' : 'onboarding';
+		} catch {
+			onlineIdentity = null;
+			onlineState = 'offline';
+		}
+	}
+
+	async function createOnlineIdentity(nickname?: string): Promise<void> {
+		const response = await fetch('/api/identity', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(nickname ? { nickname } : {})
+		});
+		const body = (await response.json()) as OnlineIdentity & { message?: string };
+		if (!response.ok) throw new Error(body.message ?? '닉네임을 만들지 못했습니다.');
+		onlineIdentity = body;
+		onlineState = 'ready';
+	}
+
 	$effect(() => {
 		session.setSurvivalDuration(stage.survivalMs);
 	});
@@ -86,7 +124,7 @@
 	function continueGame(): void {
 		audioManager.unlock();
 		customStage = null;
-		session.start(session.highestStage);
+		session.start(Math.min(CHALLENGE_STAGE_MAX, session.highestStage));
 		resetStageUi();
 		resetKey += 1;
 	}
@@ -110,6 +148,10 @@
 			returnToCustomMaps();
 			return;
 		}
+		if (session.currentStage >= CHALLENGE_STAGE_MAX) {
+			returnToMenu();
+			return;
+		}
 		session.nextStage();
 		resetStageUi();
 		resetKey += 1;
@@ -130,12 +172,39 @@
 		}
 	}
 
-	function handleClear(score: StageScore): void {
+	function handleClear(score: StageScore, replay: StageReplay): void {
 		session.markCleared(score, MAX_HINT_VIEWS_PER_STAGE - hintViewsRemaining);
+		void submitStageTelemetry('cleared', 'none', score.inkRatio, session.survivalElapsedMs).catch(() => undefined);
+		if (!session.isCustomStage && isChallengeStage(stage.id)) {
+			void submitChallengeReplay(replay).catch(() => undefined);
+		}
+		if (session.isCustomStage && activeCustomOnlineMapId) {
+			void submitCustomMapReplay(activeCustomOnlineMapId, replay).catch(() => undefined);
+		}
 	}
 
-	function handleFail(): void {
+	async function submitChallengeReplay(replay: StageReplay): Promise<void> {
+		if (onlineState !== 'ready') return;
+		const response = await fetch('/api/challenges/replay', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ replay })
+		});
+		if (!response.ok) return;
+	}
+
+	function handleFail(reason?: string): void {
 		session.markFailed(MAX_HINT_VIEWS_PER_STAGE - hintViewsRemaining);
+		void submitStageTelemetry('failed', reason ?? 'unknown', session.inkRatio, session.survivalElapsedMs).catch(() => undefined);
+	}
+
+	async function submitStageTelemetry(outcome: 'cleared' | 'failed', reason: string, inkRatio: number, elapsedMs: number): Promise<void> {
+		if (onlineState !== 'ready' || session.isCustomStage) return;
+		await fetch('/api/telemetry/stage', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ stageId: stage.id, outcome, reason, inkRatio, elapsedMs })
+		});
 	}
 
 	function handleDogAttacked(): void {
@@ -172,6 +241,12 @@
 	function resetStageUi(): void {
 		hintViewsRemaining = MAX_HINT_VIEWS_PER_STAGE;
 		showHint = false;
+		simulationSpeed = 1;
+	}
+
+	function toggleSimulationSpeed(): void {
+		if (session.phase !== 'simulating') return;
+		simulationSpeed = simulationSpeed === 1 ? 2 : simulationSpeed === 2 ? 3 : 1;
 	}
 
 	function handleHintRequest(): void {
@@ -193,6 +268,10 @@
 		menuView = 'library';
 	}
 
+	function openLeaderboard(): void {
+		menuView = 'ranking';
+	}
+
 	function editCustomMap(record: CustomMapRecord): void {
 		editorDocument = cloneStageMapDocument(record.document);
 		editorMapId = record.id;
@@ -204,6 +283,38 @@
 		const record = await session.saveCustomMap(document, id);
 		await refreshCustomMaps();
 		return record;
+	}
+
+	async function publishCustomMap(record: CustomMapRecord): Promise<void> {
+		if (onlineState !== 'ready') throw new Error('온라인 공유를 하려면 닉네임을 먼저 만들어야 합니다.');
+		const response = await fetch('/api/maps', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ document: record.document, mapId: record.onlineMapId })
+		});
+		const body = (await response.json()) as OnlineMapSummary & { message?: string };
+		if (!response.ok) throw new Error(body.message ?? '온라인 공유에 실패했습니다.');
+		await session.saveCustomMap(record.document, record.id, body.mapId, null);
+		await refreshCustomMaps();
+	}
+
+	async function downloadOnlineMap(map: OnlineMapSummary): Promise<void> {
+		const response = await fetch(`/api/maps/${encodeURIComponent(map.mapId)}`, { cache: 'no-store' });
+		const body = (await response.json()) as OnlineMap & { message?: string };
+		if (!response.ok || !body.document) throw new Error(body.message ?? '온라인 지도를 내려받지 못했습니다.');
+		await session.saveCustomMap(body.document, undefined, undefined, map.mapId);
+		await refreshCustomMaps();
+	}
+
+	async function submitPlayerLeaderboard(): Promise<void> {
+		if (onlineState !== 'ready') throw new Error('랭킹을 등록하려면 온라인 닉네임이 필요합니다.');
+		const response = await fetch('/api/leaderboard', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ highestStage: session.highestStage, totalStars: session.totalStars, totalClears: session.totalClears })
+		});
+		const body = (await response.json()) as { message?: string };
+		if (!response.ok) throw new Error(body.message ?? '랭킹 등록에 실패했습니다.');
 	}
 
 	async function importCustomMap(shareCode: string): Promise<void> {
@@ -218,20 +329,31 @@
 		await refreshCustomMaps();
 	}
 
-	function testCustomMap(document: StageMapDocument): void {
+	async function submitCustomMapReplay(mapId: string, replay: StageReplay): Promise<void> {
+		const response = await fetch(`/api/maps/${encodeURIComponent(mapId)}/leaderboard`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ replay })
+		});
+		if (!response.ok) return;
+	}
+
+	function testCustomMap(document: StageMapDocument, onlineMapId?: string): void {
 		customStage = createStageDataFromMapDocument(document);
+		activeCustomOnlineMapId = onlineMapId ?? null;
 		session.startCustom(customStage.id);
 		resetStageUi();
 		resetKey += 1;
 	}
 
 	function playCustomMap(record: CustomMapRecord): void {
-		testCustomMap(record.document);
+		testCustomMap(record.document, record.sourceOnlineMapId ?? record.onlineMapId);
 	}
 
 	function returnToCustomMaps(): void {
 		session.returnToMenu();
 		customStage = null;
+		activeCustomOnlineMapId = null;
 		showHint = false;
 		menuView = 'library';
 		void refreshCustomMaps();
@@ -273,6 +395,7 @@
 				{stage}
 				{resetKey}
 				skin={session.skin}
+				{simulationSpeed}
 				onPhaseChange={handlePhaseChange}
 				onInkChange={(value) => session.setInkRatio(value)}
 				onTimerChange={(value) => session.setSurvivalElapsed(value)}
@@ -289,11 +412,13 @@
 				objectiveHint={stage.objectiveHint}
 				dangerLabel={stage.dangerLabel}
 				phase={session.phase}
+				{simulationSpeed}
 				inkRatio={session.inkRatio}
 				remainingSeconds={session.remainingSeconds}
 				{hintViewsRemaining}
 				{showHint}
 				onHint={handleHintRequest}
+				onToggleSpeed={toggleSimulationSpeed}
 				onRetry={retryStage}
 				onMenu={session.isCustomStage ? returnToCustomMaps : returnToMenu}
 			/>
@@ -307,6 +432,8 @@
 				onMenu={session.isCustomStage ? returnToCustomMaps : returnToMenu}
 			/>
 		</div>
+	{:else if onlineState === 'onboarding'}
+		<NicknameOnboarding onCreate={createOnlineIdentity} />
 	{:else if menuView === 'editor'}
 		{#key editorKey}
 			<MapEditor
@@ -329,9 +456,23 @@
 			onPlay={playCustomMap}
 			onImport={importCustomMap}
 			onDelete={deleteCustomMap}
+			onPublish={publishCustomMap}
+			onDownloadOnline={downloadOnlineMap}
+			nickname={onlineIdentity?.nickname}
+		/>
+	{:else if menuView === 'ranking'}
+		<RankingBoard
+			nickname={onlineIdentity?.nickname}
+			highestStage={session.highestStage}
+			totalClears={session.totalClears}
+			totalStars={session.totalStars}
+			skin={session.skin}
+			onBack={() => (menuView = 'menu')}
+			onSubmit={submitPlayerLeaderboard}
 		/>
 	{:else}
 		<MainMenu
+			nickname={onlineIdentity?.nickname}
 			highestStage={session.highestStage}
 			totalClears={session.totalClears}
 			totalStars={session.totalStars}
@@ -350,6 +491,7 @@
 			onSfxChange={handleSfxChange}
 			onMapCreate={openMapCreator}
 			onMapLibrary={openMapLibrary}
+			onLeaderboard={openLeaderboard}
 		/>
 	{/if}
 </GameShell>

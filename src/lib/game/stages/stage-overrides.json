@@ -539,19 +539,19 @@
 		"obstacles": [
 			{ "type": "ground", "x": 195, "y": 660, "width": 390, "height": 20 },
 			{ "type": "wood", "x": 108, "y": 512, "width": 108, "height": 16 },
-			{ "type": "stone", "x": 206, "y": 508, "width": 40, "height": 282 },
-			{ "type": "wood", "x": 300, "y": 360, "width": 116, "height": 16, "angle": -0.2 },
-			{ "type": "rolling-boulder", "x": 338, "y": 304, "width": 54, "height": 54 },
+			{ "type": "stone", "x": 222, "y": 590, "width": 40, "height": 140 },
+			{ "type": "wood", "x": 150, "y": 370, "width": 118, "height": 16, "angle": -0.24 },
+			{ "type": "rolling-boulder", "x": 186, "y": 304, "width": 54, "height": 54 },
 			{ "type": "water", "x": 88, "y": 632, "width": 112, "height": 36 },
 			{ "type": "acid", "x": 302, "y": 632, "width": 136, "height": 36 }
 		],
 		"inkLimit": 320,
 		"survivalMs": 10000,
 		"difficultyLabel": "바위 관문",
-		"objectiveLabel": "기둥 뒤 안전실 고정",
-		"objectiveHint": "중앙 돌기둥을 등지고 짧게 안전실을 만든 뒤, 경사에서 내려오는 바위가 선을 밀지 못하도록 지붕을 발판에 걸치세요.",
-		"dangerLabel": "breaker 벌 + 굴림 바위",
-		"designerNote": "벌의 우회와 바위의 물리 충돌을 하나의 앵커 구조로 해결해야 하는 중후반 관문입니다."
+		"objectiveLabel": "굴림돌 경로와 안전실 분리",
+		"objectiveHint": "왼쪽 위 경사에서 강아지 쪽으로 굴러오는 바위의 길을 먼저 읽고, 발판과 낮은 돌기둥 사이에 짧은 안전실을 고정하세요.",
+		"dangerLabel": "강아지 방향 굴림돌 + breaker 벌",
+		"designerNote": "굴림돌을 강아지보다 높은 경사에 배치해, 입력 전에 움직이지 않다가 드로잉 종료 뒤 경사를 따라 안전실 쪽으로 내려옵니다."
 	},
 	"25": {
 		"designType": "split-hive",

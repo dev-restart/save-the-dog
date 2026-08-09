@@ -17,16 +17,21 @@ export interface BeeDifficultyProfile {
 	wallFollowWeight: number;
 	avoidanceWeight: number;
 	usesDogAttackCandidates: boolean;
+	// 방어선 압박 전투 파라미터
+	combatPushForce: number;
+	combatPullForce: number;
+	combatRotateTorque: number;
+	combatCollectiveRadius: number;
 }
 
 export const BEE_DIFFICULTY_PROFILES: Record<DifficultyProfileId, BeeDifficultyProfile> = {
-	tutorial: createProfile(0, 25, 1, 7, 4, 1, false),
-	shelter: createProfile(0.12, 4, 1.08, 7.3, 4, 1, true),
-	hazard: createProfile(0.26, 4, 1.16, 7.6, 5, 1, true),
-	swarm: createProfile(0.42, 5, 1.24, 7.9, 6, 2, true),
-	physics: createProfile(0.56, 5, 1.32, 8.2, 7, 2, true),
-	expert: createProfile(0.72, 6, 1.4, 8.55, 8, 3, true),
-	master: createProfile(0.9, 7, 1.5, 8.9, 9, 3, true)
+	tutorial: createProfile(0, 25, 1, 7, 4, 1, false, 0, 0, 0, 0),
+	shelter: createProfile(0.12, 4, 1.08, 7.3, 4, 1, true, 0, 0, 0, 0),
+	hazard: createProfile(0.26, 4, 1.16, 7.6, 5, 1, true, 0, 0, 0, 0),
+	swarm: createProfile(0.42, 5, 1.24, 7.9, 6, 2, true, 0.0012, 0, 0, 80),
+	physics: createProfile(0.56, 5, 1.32, 8.2, 7, 2, true, 0.0016, 0.002, 0, 100),
+	expert: createProfile(0.72, 6, 1.4, 8.55, 8, 3, true, 0.002, 0.0028, 0.0001, 120),
+	master: createProfile(0.9, 7, 1.5, 8.9, 9, 3, true, 0.0024, 0.0036, 0.0002, 150)
 };
 
 export function createBeeDifficultyProfile(stageId: number, difficulty?: StageDifficulty): BeeDifficultyProfile {
@@ -54,7 +59,11 @@ export function createBeeDifficultyProfile(stageId: number, difficulty?: StageDi
 		probeMargin: 26 + intelligence * 28,
 		wallFollowWeight: 1.2 + intelligence * 0.55,
 		avoidanceWeight: 0.42 + intelligence * 0.2,
-		usesDogAttackCandidates: stageId >= 2
+		usesDogAttackCandidates: stageId >= 2,
+		combatPushForce: stageId >= 4 ? 0.0008 + intelligence * 0.0016 : 0,
+		combatPullForce: stageId >= 6 ? 0.0012 + intelligence * 0.0024 : 0,
+		combatRotateTorque: stageId >= 12 ? 0.00006 + intelligence * 0.00014 : 0,
+		combatCollectiveRadius: stageId >= 4 ? 60 + intelligence * 90 : 0
 	};
 }
 
@@ -65,7 +74,11 @@ function createProfile(
 	maxSpeed: number,
 	attackCandidateLimit: number,
 	attackPathSearchLimit: number,
-	usesDogAttackCandidates: boolean
+	usesDogAttackCandidates: boolean,
+	combatPushForce: number,
+	combatPullForce: number,
+	combatRotateTorque: number,
+	combatCollectiveRadius: number
 ): BeeDifficultyProfile {
 	const tier = Math.round(intelligence * 8);
 	return {
@@ -83,7 +96,11 @@ function createProfile(
 		probeMargin: 26 + intelligence * 28,
 		wallFollowWeight: 1.2 + intelligence * 0.55,
 		avoidanceWeight: 0.42 + intelligence * 0.2,
-		usesDogAttackCandidates
+		usesDogAttackCandidates,
+		combatPushForce,
+		combatPullForce,
+		combatRotateTorque,
+		combatCollectiveRadius
 	};
 }
 

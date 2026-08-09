@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { HelpCircle, Home, RotateCcw, ShieldAlert } from '@lucide/svelte';
+	import { FastForward, HelpCircle, Home, RotateCcw, ShieldAlert } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import type { GamePhase } from '$lib/game/types.js';
 	import InkMeter from './InkMeter.svelte';
@@ -12,11 +12,13 @@
 		objectiveHint?: string;
 		dangerLabel?: string;
 		phase: GamePhase;
+		simulationSpeed: 1 | 2 | 3;
 		inkRatio: number;
 		remainingSeconds: number;
 		hintViewsRemaining?: number;
 		showHint?: boolean;
 		onHint?: () => void;
+		onToggleSpeed: () => void;
 		onRetry: () => void;
 		onMenu: () => void;
 	}
@@ -28,17 +30,20 @@
 		objectiveHint = '벌과 위험 지형을 동시에 막으세요.',
 		dangerLabel = '벌 공격',
 		phase,
+		simulationSpeed,
 		inkRatio,
 		remainingSeconds,
 		hintViewsRemaining = 3,
 		showHint = false,
 		onHint = () => {},
+		onToggleSpeed,
 		onRetry,
 		onMenu
 	}: Props = $props();
 
 	let showTimer = $derived(phase === 'simulating');
 	let canShowHint = $derived(!showTimer && !showHint && hintViewsRemaining > 0);
+	let canToggleSpeed = $derived(phase === 'simulating');
 	let timerTone = $derived(remainingSeconds <= 3 ? 'text-rose-600' : 'text-slate-900');
 </script>
 
@@ -47,6 +52,18 @@
 		<StageBadge {stage} {difficulty} />
 		<InkMeter value={inkRatio} />
 		<div class="flex shrink-0 items-center gap-1">
+			<Button
+				variant={simulationSpeed > 1 ? 'default' : 'ghost'}
+				size="icon-sm"
+				class="relative"
+				aria-label={simulationSpeed === 1 ? '2배속으로 진행' : simulationSpeed === 2 ? '3배속으로 진행' : '일반 속도로 진행'}
+				title={simulationSpeed === 1 ? '2배속' : simulationSpeed === 2 ? '3배속' : '배속 해제'}
+				disabled={!canToggleSpeed}
+				onclick={onToggleSpeed}
+			>
+				<FastForward class="size-4" />
+				<span class="absolute -right-1 -top-1 rounded bg-amber-400 px-1 text-[8px] font-black leading-3 text-slate-950" aria-hidden="true">{simulationSpeed}×</span>
+			</Button>
 			<Button
 				variant="ghost"
 				size="icon-sm"
@@ -73,8 +90,12 @@
 	</div>
 
 	{#if showTimer}
-		<div class={`mx-auto mt-2 w-fit rounded-md bg-white/80 px-3 py-1 text-lg font-black shadow ${timerTone}`}>
+		<div data-testid="survival-timer" class={`mx-auto mt-2 w-fit rounded-md bg-white/80 px-3 py-1 text-lg font-black shadow ${timerTone}`}>
 			{remainingSeconds.toFixed(1)}s
+		</div>
+	{:else if phase === 'ready' || phase === 'drawing'}
+		<div class="mx-auto mt-2 w-fit rounded-md border border-white/70 bg-white/84 px-3 py-1 text-[11px] font-black text-slate-700 shadow">
+			{phase === 'drawing' ? '선을 그리고 있어요. 손을 떼면 시작합니다.' : '선을 그린 뒤 손을 떼면 10초가 시작됩니다.'}
 		</div>
 	{/if}
 </header>

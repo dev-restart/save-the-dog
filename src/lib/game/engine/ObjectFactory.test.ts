@@ -73,12 +73,30 @@ describe('ObjectFactory obstacle bodies', () => {
 		expect(body.isSensor).toBe(false);
 	});
 
-	it('폭탄은 강아지만 감지하는 센서 함정으로 생성한다', () => {
+	it('잔디 블록은 드로잉과 동적 오브젝트를 지지하는 고정 지형으로 생성한다', () => {
+		const body = ObjectFactory.createObstacle({ type: 'terrain-block', x: 195, y: 520, width: 60, height: 60 }, size);
+
+		expect(body.label).toBe('terrain-block');
+		expect(body.isStatic).toBe(true);
+		expect(body.isSensor).toBe(false);
+	});
+
+	it('연결 가능한 지형 블록과 나무·바위 지형은 물리 충돌과 드로잉 제한을 함께 적용한다', () => {
+		for (const type of ['no-draw-zone', 'no-draw-ground', 'no-draw-tree', 'no-draw-rock'] as const) {
+			const body = ObjectFactory.createObstacle({ type, x: 195, y: 520, width: 60, height: 60 }, size);
+
+			expect(body.isStatic, type).toBe(true);
+			expect(body.isSensor, type).toBe(false);
+		}
+	});
+
+	it('폭탄은 중력을 받는 동적 오브젝트로 생성한다', () => {
 		const body = ObjectFactory.createObstacle({ type: 'bomb', x: 195, y: 520, width: 40, height: 40 }, size);
 
 		expect(body.label).toBe('bomb');
-		expect(body.isStatic).toBe(true);
-		expect(body.isSensor).toBe(true);
+		expect(body.isStatic).toBe(false);
+		expect(body.isSensor).toBe(false);
+		expect(body.frictionAir).toBeGreaterThan(0.1);
 	});
 
 	it('굴림 바위는 선과 지형에 반응하는 dynamic 위험물로 생성한다', () => {
@@ -104,5 +122,51 @@ describe('ObjectFactory obstacle bodies', () => {
 		}
 
 		expect(boulder.position.y).toBeGreaterThan(startY);
+	});
+
+	it('굴림 바위는 수평 나무판에 착지하면 자체 회전 없이 멈춘다', () => {
+		const engine = Matter.Engine.create();
+		engine.gravity.y = PHYSICS.gravityY;
+		const platform = ObjectFactory.createObstacle(
+			{ type: 'wood', x: 195, y: 460, width: 260, height: 16 },
+			size
+		);
+		const boulder = ObjectFactory.createObstacle(
+			{ type: 'rolling-boulder', x: 195, y: 280, width: 54, height: 54 },
+			size
+		);
+		const startX = boulder.position.x;
+
+		Matter.Composite.add(engine.world, [platform, boulder]);
+		for (let index = 0; index < 360; index += 1) {
+			Matter.Engine.update(engine, PHYSICS.fixedDeltaMs);
+		}
+
+		expect(boulder.position.x).toBeCloseTo(startX, 0);
+		expect(boulder.position.y).toBeGreaterThan(410);
+		expect(boulder.velocity.x).toBeCloseTo(0, 2);
+		expect(boulder.angularVelocity).toBeCloseTo(0, 2);
+	});
+
+	it('레벨 24처럼 경사진 나무판에 닿은 굴림 바위는 수직 낙하가 아니라 경사를 따라 이동한다', () => {
+		const engine = Matter.Engine.create();
+		engine.gravity.y = PHYSICS.gravityY;
+		const slope = ObjectFactory.createObstacle(
+			{ type: 'wood', x: 150, y: 370, width: 118, height: 16, angle: -0.24 },
+			size
+		);
+		const boulder = ObjectFactory.createObstacle(
+			{ type: 'rolling-boulder', x: 186, y: 304, width: 54, height: 54 },
+			size
+		);
+		const startX = boulder.position.x;
+
+		Matter.Composite.add(engine.world, [slope, boulder]);
+		for (let index = 0; index < 120; index += 1) {
+			Matter.Engine.update(engine, PHYSICS.fixedDeltaMs);
+		}
+
+		expect(boulder.position.x).toBeLessThan(startX - 10);
+		expect(boulder.velocity.x).toBeLessThan(0);
 	});
 });
