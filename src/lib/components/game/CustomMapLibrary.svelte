@@ -130,8 +130,10 @@
 		}
 	}
 
-	function formatDate(timestamp: number): string {
-		return new Intl.DateTimeFormat('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(timestamp);
+	function formatDate(timestamp: number | string | Date): string {
+		const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+		if (Number.isNaN(date.getTime())) return '날짜 없음';
+		return new Intl.DateTimeFormat('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
 	}
 </script>
 

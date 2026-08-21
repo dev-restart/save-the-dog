@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowLeft, RefreshCw, Trophy, Upload } from '@lucide/svelte';
+	import { ArrowLeft, RefreshCw, Trophy } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 import type { PlayerLeaderboardEntry } from '$lib/game/online/types.js';
 import type { SkinId } from '$lib/game/types.js';
@@ -20,15 +20,12 @@ interface VerifiedChallengeEntry {
 		totalStars: number;
 		skin: SkinId;
 		onBack: () => void;
-		onSubmit: () => Promise<void>;
 	}
 
-	let { nickname, highestStage, totalClears, totalStars, skin, onBack, onSubmit }: Props = $props();
+	let { nickname, highestStage, totalClears, totalStars, skin, onBack }: Props = $props();
 	let entries = $state<PlayerLeaderboardEntry[]>([]);
 	let verifiedEntries = $state<VerifiedChallengeEntry[]>([]);
 	let isLoading = $state(true);
-	let isSubmitting = $state(false);
-	let message = $state('');
 	let error = $state('');
 
 	$effect(() => {
@@ -58,21 +55,6 @@ interface VerifiedChallengeEntry {
 		}
 	}
 
-	async function submit(): Promise<void> {
-		if (isSubmitting) return;
-		isSubmitting = true;
-		message = '';
-		error = '';
-		try {
-			await onSubmit();
-			message = '현재 캐주얼 기록을 랭킹에 등록했습니다.';
-			await loadLeaderboard(true);
-		} catch (cause) {
-			error = cause instanceof Error ? cause.message : '기록을 등록하지 못했습니다.';
-		} finally {
-			isSubmitting = false;
-		}
-	}
 </script>
 
 <section class="ranking-screen" data-skin={skin}>
@@ -82,13 +64,11 @@ interface VerifiedChallengeEntry {
 		<Button variant="secondary" size="icon-sm" aria-label="랭킹 새로고침" onclick={() => void loadLeaderboard()}><RefreshCw class="size-4" /></Button>
 	</header>
 
-	<section class="my-record" aria-label="내 로컬 기록">
+	<section class="my-record" aria-label="내 서버 검증 기록">
 		<div><span class="record-label">내 기록</span><strong>{nickname ?? '오프라인 플레이어'}</strong></div>
 		<div class="record-stats"><span>최고 {highestStage}단계</span><span>별 {totalStars.toFixed(1)}</span><span>클리어 {totalClears}</span></div>
-		<Button size="sm" class="font-black" disabled={!nickname || isSubmitting} onclick={() => void submit()}><Upload class="size-3.5" /> 랭킹 등록</Button>
 	</section>
-	<p class="trust-note">캐주얼 기록은 브라우저 진행도를 등록합니다. 101단계부터는 드로잉 replay를 서버 물리로 재생한 검증 랭킹을 별도로 제공합니다.</p>
-	{#if message}<p class="message" aria-live="polite">{message}</p>{/if}
+	<p class="trust-note">모든 Stage 클리어 기록은 replay를 서버 물리로 다시 검증한 뒤 자동으로 진행도와 랭킹에 반영됩니다.</p>
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 
 	<div class="ranking-list" aria-label="전체 플레이어 랭킹">
@@ -133,8 +113,7 @@ interface VerifiedChallengeEntry {
 	.my-record strong { font-size: .9rem; }
 	.record-stats { display: flex; flex-wrap: wrap; gap: .35rem .7rem; color: #4f6e86; font-size: .72rem; font-weight: 800; }
 	.trust-note { margin: .7rem 0; color: #6b8292; font-size: .68rem; font-weight: 700; line-height: 1.45; }
-	.message, .error { margin: .5rem 0; font-size: .74rem; font-weight: 800; }
-	.message { color: #197344; } .error { color: #b2382e; }
+	.error { margin: .5rem 0; color: #b2382e; font-size: .74rem; font-weight: 800; }
 	.ranking-list { display: grid; gap: .45rem; }
 	.ranking-row { display: grid; grid-template-columns: 2rem 1fr auto; align-items: center; gap: .55rem; border-bottom: 1px solid rgba(50, 83, 103, .14); padding: .7rem .35rem; }
 	.my-row { border-radius: 12px; background: rgba(255, 229, 136, .35); padding-left: .55rem; padding-right: .55rem; }

@@ -95,7 +95,7 @@
 		</div>
 	{:else if phase === 'ready' || phase === 'drawing'}
 		<div class="mx-auto mt-2 w-fit rounded-md border border-white/70 bg-white/84 px-3 py-1 text-[11px] font-black text-slate-700 shadow">
-			{phase === 'drawing' ? '선을 그리고 있어요. 손을 떼면 시작합니다.' : '선을 그린 뒤 손을 떼면 10초가 시작됩니다.'}
+			{phase === 'drawing' ? '선을 그리고 있어요. 손을 떼면 시작합니다.' : `선을 그린 뒤 손을 떼면 ${Math.ceil(remainingSeconds)}초가 시작됩니다.`}
 		</div>
 	{/if}
 </header>

@@ -72,6 +72,8 @@ export interface ObstacleData {
 	width: number;
 	height: number;
 	angle?: number;
+	/** 연결 지형 compiler가 물리·Drawing 금지·렌더링에 함께 사용하는 저작 prefab. */
+	prefabId?: import('./terrain/terrain-prefabs.js').TerrainPrefabId;
 }
 
 export interface HiveData {

@@ -5,6 +5,15 @@ export interface OnlineIdentity {
 	nickname?: string;
 }
 
+export interface PlayerProgress {
+	highestStage: number;
+	lastPlayedStage: number;
+	totalClears: number;
+	totalStars: number;
+	stageStars: Record<string, number>;
+	version: 1;
+}
+
 export interface OnlineMapSummary {
 	mapId: string;
 	title: string;

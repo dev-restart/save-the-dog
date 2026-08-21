@@ -20,11 +20,10 @@ describe('stage map share schema', () => {
 		expect(document.designType).toBe('bridge-gap');
 		expect(document.environment).toBe('meadow');
 		expect(document.difficulty.profile).toBe('shelter');
-		expect(document.hint.objectiveLabel).toBe('틈 위에 가로막기');
+		expect(document.hint.objectiveLabel).toBe('높이가 다른 턱 잇기');
 		expect(objectKinds).toContain('dog');
 		expect(objectKinds).toContain('hive');
-		expect(objectKinds).toContain('wood');
-		expect(objectKinds).toContain('brick');
+		expect(objectKinds).toContain('terrain-block');
 		expect(objectKinds).toContain('water');
 		expect(document.objects.find((object) => object.kind === 'hive')?.attackStyle).toBe('direct');
 	});
@@ -90,5 +89,20 @@ describe('stage map share schema', () => {
 		const errors = validateStageMapDocument(document);
 		expect(errors).toContain('지원하지 않는 오브젝트 종류입니다.');
 		expect(errors).toContain('wood 각도를 확인하세요.');
+	});
+
+	it('지원하지 않는 terrain prefab 식별자는 저장 전에 거부한다', () => {
+		const document = createEmptyStageMapDocument();
+		document.objects.push({
+			id: 'prefab-1',
+			kind: 'terrain-block',
+			x: 180,
+			y: 420,
+			width: 180,
+			height: 110,
+			prefabId: 'unknown-prefab' as never
+		});
+
+		expect(validateStageMapDocument(document)).toContain('지원하지 않는 지형 prefab입니다.');
 	});
 });

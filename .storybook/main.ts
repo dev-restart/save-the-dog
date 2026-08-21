@@ -1,6 +1,7 @@
 import type { StorybookConfig } from '@storybook/sveltekit';
 
 const config: StorybookConfig = {
+  "staticDirs": ["../static"],
   "stories": [
     "../src/**/*.stories.@(js|ts|svelte)"
   ],

@@ -1,14 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { StageMapDocument, StageMapObject } from '$lib/game/stages/stage-map-schema.js';
 import { validateStageMapDocument } from '$lib/game/stages/stage-map-schema.js';
-import type { Db, WithId } from 'mongodb';
 import { env } from '$env/dynamic/private';
 
 export const ONLINE_MAP_LIMIT = readPositiveInteger(env.ONLINE_MAP_LIMIT, 10, 100);
 
 export interface OnlineMapRecord {
-	_id: string;
+	id: string;
 	ownerId: string;
+	ownerMapId: string | null;
 	ownerNickname: string;
 	title: string;
 	document: StageMapDocument;
@@ -85,8 +85,9 @@ export function hashMapDocument(document: StageMapDocument): string {
 export function createOnlineMapRecord(ownerId: string, ownerNickname: string, document: StageMapDocument, mapId = randomUUID()): OnlineMapRecord {
 	const now = new Date();
 	return {
-		_id: mapId,
+		id: mapId,
 		ownerId,
+		ownerMapId: null,
 		ownerNickname,
 		title: document.title,
 		document,
@@ -97,9 +98,9 @@ export function createOnlineMapRecord(ownerId: string, ownerNickname: string, do
 	};
 }
 
-export function toOnlineMapSummary(record: WithId<OnlineMapRecord>): OnlineMapSummary {
+export function toOnlineMapSummary(record: OnlineMapRecord): OnlineMapSummary {
 	return {
-		mapId: record._id,
+		mapId: record.id,
 		title: record.title,
 		authorNickname: record.ownerNickname,
 		contentHash: record.contentHash,
@@ -123,10 +124,6 @@ export function decodeCursor(value: string | null): CursorValue | null {
 	} catch {
 		return null;
 	}
-}
-
-export function mapCollection(db: Db) {
-	return db.collection<OnlineMapRecord>('online_maps');
 }
 
 function normalizeObject(object: StageMapObject): StageMapObject {

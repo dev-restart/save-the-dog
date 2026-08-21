@@ -1,4 +1,6 @@
 import Matter from 'matter-js';
+import type { BeeBodyPlugin } from './ObjectFactory.js';
+import { selectBombCollision } from './SimulationRules.js';
 
 export type DogHitReason = 'bee' | 'spike' | 'water' | 'lava' | 'bomb' | 'acid' | 'boulder' | 'rolling-boulder' | 'deadzone';
 
@@ -13,44 +15,37 @@ export interface BombDetonation {
 	triggerBody: Matter.Body;
 }
 
-// 폭탄은 다른 동적 위험물·그려진 선뿐 아니라 고정 지형에 떨어져도 기폭한다.
-const BOMB_TRIGGER_LABELS = new Set([
-	'dog',
-	'drawing',
-	'boulder',
-	'rolling-boulder',
-	'ground',
-	'platform',
-	'brick',
-	'terrain-block',
-	'wood',
-	'crate',
-	'ice',
-	'stone',
-	'no-draw-zone',
-	'no-draw-ground',
-	'no-draw-tree',
-	'no-draw-rock',
-	'wall',
-	'water',
-	'lava',
-	'acid',
-	'spike'
-]);
+export type CrateDamageReason = 'drawing-impact' | 'breaker-bee-impact';
+
+export interface CrateDamage {
+	reason: CrateDamageReason;
+	crateBody: Matter.Body;
+	sourceBody: Matter.Body;
+}
 
 export function setupCollisionEvents(
 	engine: Matter.Engine,
 	onDogDead: (hit: DogHit) => void,
-	onBombDetonated?: (detonation: BombDetonation) => void
+	onBombDetonated?: (detonation: BombDetonation) => void,
+	onCrateDamaged?: (damage: CrateDamage) => void
 ): () => void {
 	const detonatedBombIds = new Set<number>();
 	const handler = (event: Matter.IEventCollision<Matter.Engine>) => {
 		for (const pair of event.pairs) {
-			const bombBody = pair.bodyA.label === 'bomb' ? pair.bodyA : pair.bodyB.label === 'bomb' ? pair.bodyB : null;
-			const triggerBody = bombBody === pair.bodyA ? pair.bodyB : bombBody === pair.bodyB ? pair.bodyA : null;
-			if (bombBody && triggerBody && BOMB_TRIGGER_LABELS.has(triggerBody.label) && !detonatedBombIds.has(bombBody.id)) {
-				detonatedBombIds.add(bombBody.id);
-				onBombDetonated?.({ bombBody, triggerBody });
+			const crateBody = pair.bodyA.label === 'crate' ? pair.bodyA : pair.bodyB.label === 'crate' ? pair.bodyB : null;
+			const crateSource = crateBody === pair.bodyA ? pair.bodyB : crateBody === pair.bodyB ? pair.bodyA : null;
+			if (crateBody && crateSource) {
+				if (crateSource.label === 'drawing') {
+					onCrateDamaged?.({ reason: 'drawing-impact', crateBody, sourceBody: crateSource });
+				} else if (crateSource.label === 'bee' && (crateSource.plugin as BeeBodyPlugin | undefined)?.attackStyle === 'breaker') {
+					onCrateDamaged?.({ reason: 'breaker-bee-impact', crateBody, sourceBody: crateSource });
+				}
+			}
+
+			const bombCollision = selectBombCollision(pair.bodyA, pair.bodyB);
+			if (bombCollision && !detonatedBombIds.has(bombCollision.bombBody.id)) {
+				detonatedBombIds.add(bombCollision.bombBody.id);
+				onBombDetonated?.(bombCollision);
 			}
 
 			const dogBody = pair.bodyA.label === 'dog' ? pair.bodyA : pair.bodyB.label === 'dog' ? pair.bodyB : null;

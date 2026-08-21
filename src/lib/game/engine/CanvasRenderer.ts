@@ -1,7 +1,7 @@
 import Matter from 'matter-js';
 import { PHYSICS } from '../constants.js';
 import { getSkinDefinition, type SkinAsset, type SkinDefinition } from '../skins.js';
-import type { BodyLabel, GamePhase, Point, SkinId, StageEnvironment } from '../types.js';
+import type { BodyLabel, CanvasSize, GamePhase, Point, SkinId, StageEnvironment } from '../types.js';
 import type { DrawingBodyPlugin } from './ObjectFactory.js';
 
 type CircleBody = Matter.Body & { circleRadius?: number };
@@ -54,12 +54,12 @@ export class CanvasRenderer {
 		phase: GamePhase,
 		drawingPoints: Point[],
 		inkRatio: number,
-		timestamp = now()
+		timestamp = now(),
+		viewport?: CanvasSize
 	): void {
-		const width = ctx.canvas.clientWidth || ctx.canvas.width;
-		const height = ctx.canvas.clientHeight || ctx.canvas.height;
-		ctx.clearRect(0, 0, width, height);
-		this.drawBackground(ctx, phase);
+		const width = viewport?.width ?? (ctx.canvas.clientWidth || ctx.canvas.width);
+		const height = viewport?.height ?? (ctx.canvas.clientHeight || ctx.canvas.height);
+		this.drawBackground(ctx, phase, { width, height });
 
 		// 지형 바디를 먼저 그려 배경과 통합된 느낌을 준다.
 		const bodies = Matter.Composite.allBodies(world);
@@ -67,7 +67,7 @@ export class CanvasRenderer {
 		const otherBodies = bodies.filter((body) => !this.isTerrainBody(body.label as BodyLabel));
 
 		for (const body of terrainBodies) {
-			this.drawBody(ctx, body, phase);
+			this.drawBody(ctx, body, phase, terrainBodies);
 		}
 		for (const body of otherBodies) {
 			this.drawBody(ctx, body, phase);
@@ -102,9 +102,9 @@ export class CanvasRenderer {
 		);
 	}
 
-	private drawBackground(ctx: CanvasRenderingContext2D, phase: GamePhase): void {
-		const width = ctx.canvas.clientWidth || ctx.canvas.width;
-		const height = ctx.canvas.clientHeight || ctx.canvas.height;
+	private drawBackground(ctx: CanvasRenderingContext2D, phase: GamePhase, viewport?: CanvasSize): void {
+		const width = viewport?.width ?? (ctx.canvas.clientWidth || ctx.canvas.width);
+		const height = viewport?.height ?? (ctx.canvas.clientHeight || ctx.canvas.height);
 		const environmentBackground =
 			this.backgroundEnvironment === 'volcanic'
 				? this.getImage('volcanoBackground')
@@ -147,7 +147,7 @@ export class CanvasRenderer {
 		ctx.fill();
 	}
 
-	private drawBody(ctx: CanvasRenderingContext2D, body: Matter.Body, phase: GamePhase): void {
+	private drawBody(ctx: CanvasRenderingContext2D, body: Matter.Body, phase: GamePhase, terrainBodies: Matter.Body[] = []): void {
 		const label = body.label as BodyLabel;
 		if (label === 'wall' || label === 'deadzone') return;
 
@@ -171,7 +171,7 @@ export class CanvasRenderer {
 			return;
 		}
 		if (label === 'spike') {
-			if (!this.drawBodyImage(ctx, body, 'spike')) {
+			if (!this.drawRepeatedBodyImage(ctx, body, 'spike', 'x')) {
 				this.drawSpike(ctx, body);
 			}
 			return;
@@ -192,10 +192,7 @@ export class CanvasRenderer {
 			if (this.drawBodyImage(ctx, body, 'ice')) return;
 		}
 		if (label === 'stone') {
-			// 돌 기둥은 stone-pillar 에셋을 우선 사용한다.
-			if (!this.drawBodyImage(ctx, body, 'stonePillar')) {
-				this.drawBodyImage(ctx, body, 'stone');
-			}
+			if (!this.drawTextureBody(ctx, body, 'terrainStone', 92)) this.drawBodyImage(ctx, body, 'stonePillar');
 			return;
 		}
 		if (label === 'brick') {
@@ -203,11 +200,11 @@ export class CanvasRenderer {
 			return;
 		}
 		if (label === 'terrain-block') {
-			if (!this.drawBodyImage(ctx, body, 'terrainBlock')) this.drawGrassBlockTerrain(ctx, body);
+			if (!this.drawTiledTerrainImage(ctx, body, isTerrainTopExposed(body, terrainBodies))) this.drawGrassBlockTerrain(ctx, body);
 			return;
 		}
 		if (label === 'wood') {
-			if (!this.drawBodyImage(ctx, body, 'wood')) {
+			if (!this.drawRepeatedBodyImage(ctx, body, 'wood', 'x')) {
 				this.drawWood(ctx, body);
 			}
 			return;
@@ -219,18 +216,18 @@ export class CanvasRenderer {
 			if (this.drawBodyImage(ctx, body, 'rollingBoulder')) return;
 		}
 		if (label === 'ground') {
-			this.drawGrassBlockTerrain(ctx, body);
+			if (!this.drawTiledTerrainImage(ctx, body, isTerrainTopExposed(body, terrainBodies))) this.drawGrassBlockTerrain(ctx, body);
 			return;
 		}
 		if (label === 'platform') {
-			if (this.drawBodyImage(ctx, body, label)) return;
+			if (this.drawRepeatedBodyImage(ctx, body, label, 'x')) return;
 		}
 		if (label === 'no-draw-zone') {
-			if (!this.drawBodyImage(ctx, body, 'noDrawZone')) this.drawNoDrawZone(ctx, body);
+			if (!this.drawTiledTerrainImage(ctx, body, isTerrainTopExposed(body, terrainBodies))) this.drawNoDrawZone(ctx, body);
 			return;
 		}
 		if (label === 'no-draw-ground') {
-			this.drawGrassBlockTerrain(ctx, body);
+			if (!this.drawTiledTerrainImage(ctx, body, isTerrainTopExposed(body, terrainBodies))) this.drawGrassBlockTerrain(ctx, body);
 			return;
 		}
 		if (label === 'no-draw-tree') {
@@ -316,15 +313,7 @@ export class CanvasRenderer {
 		ctx.translate(body.position.x, body.position.y);
 		ctx.rotate(body.angle);
 		if (
-			asset === 'bomb' ||
-			asset === 'boulder' ||
-			asset === 'crate' ||
-			asset === 'acid' ||
-			asset === 'ice' ||
-			asset === 'stone' ||
-			asset === 'groundCross' ||
-			asset === 'dirtWall' ||
-			asset === 'stonePillar' ||
+			((asset === 'noDrawZone' || asset === 'noDrawTree' || asset === 'noDrawRock') && this.skin.id !== 'classic') ||
 			(asset === 'rollingBoulder' && this.skin.id !== 'classic')
 		) {
 			// 이미지젠 시트는 흰 배경으로 분리했다. multiply를 사용하면 흰 여백이 게임 배경을 덮지 않는다.
@@ -333,6 +322,138 @@ export class CanvasRenderer {
 		ctx.drawImage(image, -width / 2, -height / 2, width, height);
 		ctx.restore();
 		return true;
+	}
+
+	private drawRepeatedBodyImage(ctx: CanvasRenderingContext2D, body: Matter.Body, asset: SkinAsset, axis: 'x' | 'y'): boolean {
+		const image = this.getImage(asset);
+		if (!image) return false;
+
+		const { width, height } = getBodySize(body);
+		const left = -width / 2;
+		const top = -height / 2;
+		const tileWidth = axis === 'x' ? height * (image.naturalWidth / image.naturalHeight) : width;
+		const tileHeight = axis === 'y' ? width * (image.naturalHeight / image.naturalWidth) : height;
+
+		ctx.save();
+		ctx.translate(body.position.x, body.position.y);
+		ctx.rotate(body.angle);
+		this.clipBodyShape(ctx, body);
+		for (let x = left, y = top; x < left + width - 0.1 && y < top + height - 0.1; x += axis === 'x' ? tileWidth : 0, y += axis === 'y' ? tileHeight : 0) {
+			ctx.drawImage(image, x, y, tileWidth, tileHeight);
+		}
+		ctx.restore();
+		return true;
+	}
+
+	private drawGridBodyImage(ctx: CanvasRenderingContext2D, body: Matter.Body, asset: SkinAsset): boolean {
+		const image = this.getImage(asset);
+		if (!image) return false;
+
+		const { width, height } = getBodySize(body);
+		const left = -width / 2;
+		const top = -height / 2;
+		const sourceInsetX = image.naturalWidth * 0.024;
+		const sourceInsetY = image.naturalHeight * 0.066;
+		const sourceWidth = image.naturalWidth - sourceInsetX * 2;
+		const sourceHeight = image.naturalHeight - sourceInsetY * 2;
+		const tileHeight = Math.min(42, Math.max(28, height));
+		const tileWidth = tileHeight * (sourceWidth / sourceHeight);
+
+		ctx.save();
+		ctx.translate(body.position.x, body.position.y);
+		ctx.rotate(body.angle);
+		ctx.beginPath();
+		ctx.rect(left, top, width, height);
+		ctx.clip();
+		for (let y = top; y < top + height - 0.1; y += tileHeight) {
+			for (let x = left; x < left + width - 0.1; x += tileWidth) {
+				ctx.drawImage(image, sourceInsetX, sourceInsetY, sourceWidth, sourceHeight, x, y, tileWidth, tileHeight);
+			}
+		}
+		ctx.restore();
+		return true;
+	}
+
+	private drawTiledTerrainImage(ctx: CanvasRenderingContext2D, body: Matter.Body, drawGrassCap = true): boolean {
+		const dirt = this.getImage('terrainDirt');
+		const grass = this.getImage('terrainGrassCap');
+		if (!dirt) return false;
+
+		const bounds = getBodyLocalBounds(body);
+		const height = bounds.maxY - bounds.minY;
+		const tileSize = 224;
+
+		ctx.save();
+		ctx.translate(body.position.x, body.position.y);
+		ctx.rotate(body.angle);
+		// Compound Prefab의 빈 동굴·ㄷ자 내부까지 바운딩 사각형으로 칠하지 않는다.
+		// 물리와 Drawing 금지에 쓰는 실제 part polygon을 그대로 시각 clipping에 사용한다.
+		this.clipBodyShape(ctx, body);
+
+		for (let y = bounds.minY; y < bounds.maxY - 0.1; y += tileSize) {
+			for (let x = bounds.minX; x < bounds.maxX - 0.1; x += tileSize) {
+				ctx.drawImage(dirt, x, y, tileSize, tileSize);
+			}
+		}
+
+		const supportSegments = (body.plugin as { terrainSupportSegments?: Array<{ from: Point; to: Point }> }).terrainSupportSegments;
+		if (drawGrassCap && grass && supportSegments?.length) {
+			ctx.restore();
+			for (const segment of supportSegments) {
+				const length = Math.hypot(segment.to.x - segment.from.x, segment.to.y - segment.from.y);
+				const angle = Math.atan2(segment.to.y - segment.from.y, segment.to.x - segment.from.x);
+				const capHeight = 14;
+				ctx.save();
+				ctx.translate((segment.from.x + segment.to.x) / 2, (segment.from.y + segment.to.y) / 2);
+				ctx.rotate(angle);
+				ctx.drawImage(grass, -length / 2, -capHeight * 0.58, length, capHeight);
+				ctx.restore();
+			}
+			return true;
+		}
+		if (drawGrassCap && grass) {
+			const capHeight = Math.min(15, Math.max(9, height * 0.22));
+			const stripWidth = Math.max(100, capHeight * (grass.naturalWidth / grass.naturalHeight));
+			for (let x = bounds.minX; x < bounds.maxX - 0.1; x += stripWidth) {
+				ctx.drawImage(grass, x, bounds.minY - 1, stripWidth, capHeight);
+			}
+		}
+		ctx.restore();
+		return true;
+	}
+
+	private drawTextureBody(ctx: CanvasRenderingContext2D, body: Matter.Body, asset: SkinAsset, tileSize: number): boolean {
+		const image = this.getImage(asset);
+		if (!image) return false;
+		const bounds = getBodyLocalBounds(body);
+		ctx.save();
+		ctx.translate(body.position.x, body.position.y);
+		ctx.rotate(body.angle);
+		this.clipBodyShape(ctx, body);
+		for (let y = bounds.minY; y < bounds.maxY - 0.1; y += tileSize) {
+			for (let x = bounds.minX; x < bounds.maxX - 0.1; x += tileSize) ctx.drawImage(image, x, y, tileSize, tileSize);
+		}
+		ctx.restore();
+		return true;
+	}
+
+	private clipBodyShape(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
+		const parts = body.parts.length > 1 ? body.parts.slice(1) : [body];
+		const cosine = Math.cos(-body.angle);
+		const sine = Math.sin(-body.angle);
+		ctx.beginPath();
+		for (const part of parts) {
+			part.vertices.forEach((vertex, index) => {
+				const dx = vertex.x - body.position.x;
+				const dy = vertex.y - body.position.y;
+				const x = dx * cosine - dy * sine;
+				const y = dx * sine + dy * cosine;
+				if (index === 0) ctx.moveTo(x, y);
+				else ctx.lineTo(x, y);
+			});
+			ctx.closePath();
+		}
+		ctx.clip();
 	}
 
 	private drawExplosions(ctx: CanvasRenderingContext2D, timestamp: number): void {
@@ -584,17 +705,64 @@ export class CanvasRenderer {
 	}
 
 	private drawWater(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
-		if (this.drawBodyImage(ctx, body, 'water')) return;
-		this.drawHazardPool(ctx, body, '#38bdf8', '#0369a1', '#e0f2fe', '#0ea5e9');
+		if (!this.drawRepeatedBodyImage(ctx, body, 'water', 'x')) {
+			this.drawHazardPool(ctx, body, '#38bdf8', '#0369a1', '#e0f2fe', '#0ea5e9');
+		}
+		this.drawLiquidMotion(ctx, body, 'water');
 	}
 
 	private drawLava(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
-		if (this.drawBodyImage(ctx, body, 'lava')) return;
-		this.drawHazardPool(ctx, body, '#fb923c', '#9a3412', '#fde047', '#f97316');
+		if (!this.drawRepeatedBodyImage(ctx, body, 'lava', 'x')) {
+			this.drawHazardPool(ctx, body, '#fb923c', '#9a3412', '#fde047', '#f97316');
+		}
+		this.drawLiquidMotion(ctx, body, 'lava');
+	}
+
+	private drawLiquidMotion(ctx: CanvasRenderingContext2D, body: Matter.Body, kind: 'water' | 'lava'): void {
+		const { width, height } = getBodySize(body);
+		const phase = now() / (kind === 'water' ? 520 : 360);
+		const left = -width / 2;
+		const top = -height / 2;
+
+		ctx.save();
+		ctx.translate(body.position.x, body.position.y);
+		ctx.rotate(body.angle);
+		ctx.beginPath();
+		ctx.rect(left, top, width, height);
+		ctx.clip();
+
+		ctx.strokeStyle = kind === 'water' ? 'rgba(224, 242, 254, 0.8)' : 'rgba(254, 240, 138, 0.9)';
+		ctx.lineWidth = kind === 'water' ? 2 : 2.6;
+		ctx.beginPath();
+		for (let x = left - 8; x <= left + width + 8; x += 8) {
+			const y = top + 5 + Math.sin(x * 0.09 + phase) * (kind === 'water' ? 2.2 : 3.2);
+			if (x === left - 8) ctx.moveTo(x, y);
+			else ctx.lineTo(x, y);
+		}
+		ctx.stroke();
+
+		const particleCount = Math.max(2, Math.min(7, Math.round(width / 54)));
+		for (let index = 0; index < particleCount; index += 1) {
+			const travel = (phase * (kind === 'water' ? 9 : 15) + index * 31) % Math.max(18, height - 8);
+			const x = left + ((index + 0.55) / particleCount) * width + Math.sin(phase + index) * 4;
+			const y = top + height - travel;
+			ctx.fillStyle = kind === 'water' ? 'rgba(224, 242, 254, 0.55)' : 'rgba(253, 224, 71, 0.78)';
+			ctx.beginPath();
+			ctx.arc(x, y, kind === 'water' ? 1.8 + (index % 2) : 1.4 + (index % 3) * 0.5, 0, Math.PI * 2);
+			ctx.fill();
+		}
+
+		if (kind === 'lava') {
+			ctx.globalCompositeOperation = 'screen';
+			ctx.globalAlpha = 0.1 + (Math.sin(phase * 1.7) + 1) * 0.04;
+			ctx.fillStyle = '#fde047';
+			ctx.fillRect(left, top, width, height);
+		}
+		ctx.restore();
 	}
 
 	private drawAcid(ctx: CanvasRenderingContext2D, body: Matter.Body): void {
-		if (this.drawBodyImage(ctx, body, 'acid')) return;
+		if (this.drawRepeatedBodyImage(ctx, body, 'acid', 'x')) return;
 		this.drawHazardPool(ctx, body, '#a3e635', '#3f6212', '#ecfccb', '#65a30d');
 	}
 
@@ -810,4 +978,43 @@ function getBodySize(body: Matter.Body): { width: number; height: number } {
 		width: body.bounds.max.x - body.bounds.min.x,
 		height: body.bounds.max.y - body.bounds.min.y
 	};
+}
+
+function getBodyLocalBounds(body: Matter.Body): { minX: number; minY: number; maxX: number; maxY: number } {
+	const parts = body.parts.length > 1 ? body.parts.slice(1) : [body];
+	const cosine = Math.cos(-body.angle);
+	const sine = Math.sin(-body.angle);
+	const points = parts.flatMap((part) =>
+		part.vertices.map((vertex) => {
+			const dx = vertex.x - body.position.x;
+			const dy = vertex.y - body.position.y;
+			return { x: dx * cosine - dy * sine, y: dx * sine + dy * cosine };
+		})
+	);
+	return {
+		minX: Math.min(...points.map((point) => point.x)),
+		minY: Math.min(...points.map((point) => point.y)),
+		maxX: Math.max(...points.map((point) => point.x)),
+		maxY: Math.max(...points.map((point) => point.y))
+	};
+}
+
+const CONNECTED_TERRAIN_LABELS = new Set(['ground', 'terrain-block', 'no-draw-zone', 'no-draw-ground']);
+
+export function isTerrainTopExposed(body: Matter.Body, terrainBodies: Matter.Body[]): boolean {
+	if (!CONNECTED_TERRAIN_LABELS.has(body.label) || Math.abs(body.angle) > 0.001) return true;
+	const { width, height } = getBodySize(body);
+	const left = body.position.x - width / 2;
+	const right = body.position.x + width / 2;
+	const top = body.position.y - height / 2;
+
+	return !terrainBodies.some((candidate) => {
+		if (candidate.id === body.id || !CONNECTED_TERRAIN_LABELS.has(candidate.label) || Math.abs(candidate.angle) > 0.001) return false;
+		const candidateSize = getBodySize(candidate);
+		const candidateLeft = candidate.position.x - candidateSize.width / 2;
+		const candidateRight = candidate.position.x + candidateSize.width / 2;
+		const candidateBottom = candidate.position.y + candidateSize.height / 2;
+		const overlap = Math.min(right, candidateRight) - Math.max(left, candidateLeft);
+		return overlap >= Math.min(width, candidateSize.width) * 0.7 && Math.abs(candidateBottom - top) <= 2;
+	});
 }

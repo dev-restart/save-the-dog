@@ -11,7 +11,7 @@ import type { StageMapDocument } from '../stages/stage-map-schema.js';
 import type { SkinId, StoredProgress } from '../types.js';
 
 const DATABASE_NAME = 'save-the-dog';
-const DATABASE_VERSION = 1;
+const DATABASE_VERSION = 2;
 const PROFILE_STORE = 'profile';
 const SETTINGS_STORE = 'settings';
 const STAGE_RESULTS_STORE = 'stage-results';
@@ -223,6 +223,24 @@ export class GamePersistence {
 		});
 	}
 
+	replaceCustomMaps(records: CustomMapRecord[]): Promise<void> {
+		const snapshots = records.slice(0, 30).map(cloneCustomMapRecord);
+		return this.enqueueWrite(async (database) => {
+			const transaction = database.transaction(CUSTOM_MAPS_STORE, 'readwrite');
+			const store = transaction.objectStore(CUSTOM_MAPS_STORE);
+			store.clear();
+			for (const record of snapshots) store.put(record);
+			await completeTransaction(transaction);
+		});
+	}
+
+	cacheCustomMap(record: CustomMapRecord): Promise<void> {
+		const snapshot = cloneCustomMapRecord(record);
+		return this.enqueueWrite(async (database) => {
+			await putRecord(database, CUSTOM_MAPS_STORE, snapshot);
+		});
+	}
+
 	private defaultSnapshot(): GamePersistenceSnapshot {
 		return {
 			progress: { ...DEFAULT_PROGRESS },
@@ -253,7 +271,6 @@ export class GamePersistence {
 		const migrated = await readRecord<{ id: string }>(database, META_STORE, LEGACY_MIGRATION_ID);
 		if (migrated) return;
 
-		const progress = parseProgress(localStorage.getItem(STORAGE_KEY));
 		const audio = parseLegacyAudioPreferences(localStorage.getItem(AUDIO_STORAGE_KEY));
 		const legacySkin = localStorage.getItem(SKIN_STORAGE_KEY);
 		const settings = normalizeSettings({
@@ -262,8 +279,7 @@ export class GamePersistence {
 			...audio
 		});
 
-		const transaction = database.transaction([PROFILE_STORE, SETTINGS_STORE, META_STORE], 'readwrite');
-		transaction.objectStore(PROFILE_STORE).put({ id: PROFILE_ID, ...progress });
+		const transaction = database.transaction([SETTINGS_STORE, META_STORE], 'readwrite');
 		transaction.objectStore(SETTINGS_STORE).put({ id: SETTINGS_ID, ...settings });
 		transaction.objectStore(META_STORE).put({ id: LEGACY_MIGRATION_ID, migratedAt: Date.now() });
 		await completeTransaction(transaction);
@@ -292,11 +308,21 @@ function createMapId(): string {
 	return `map-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function cloneCustomMapRecord(record: CustomMapRecord): CustomMapRecord {
+	return JSON.parse(JSON.stringify(record)) as CustomMapRecord;
+}
+
 function openDatabase(): Promise<IDBDatabase | null> {
 	return new Promise((resolve) => {
 		const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
-		request.onupgradeneeded = () => {
+		request.onupgradeneeded = (event) => {
 			const database = request.result;
+			const oldVersion = (event as IDBVersionChangeEvent).oldVersion;
+			if (oldVersion > 0 && oldVersion < 2) {
+				for (const storeName of [PROFILE_STORE, STAGE_RESULTS_STORE, CUSTOM_MAPS_STORE, META_STORE]) {
+					if (database.objectStoreNames.contains(storeName)) database.deleteObjectStore(storeName);
+				}
+			}
 			if (!database.objectStoreNames.contains(PROFILE_STORE)) database.createObjectStore(PROFILE_STORE, { keyPath: 'id' });
 			if (!database.objectStoreNames.contains(SETTINGS_STORE)) database.createObjectStore(SETTINGS_STORE, { keyPath: 'id' });
 			if (!database.objectStoreNames.contains(STAGE_RESULTS_STORE)) database.createObjectStore(STAGE_RESULTS_STORE, { keyPath: 'stageId' });

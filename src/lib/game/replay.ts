@@ -1,4 +1,4 @@
-import type { Point, StageData } from './types.js';
+import type { CanvasSize, Point, StageData } from './types.js';
 import { BASE_WORLD } from './types.js';
 
 export const REPLAY_VERSION = 1 as const;
@@ -16,12 +16,12 @@ export interface StageReplay {
 	commands: ReplayCommand[];
 }
 
-export function createStageReplay(stage: StageData, commands: ReplayCommand[]): StageReplay {
+export function createStageReplay(stage: StageData, commands: ReplayCommand[], sourceSize: CanvasSize = BASE_WORLD): StageReplay {
 	return {
 		version: REPLAY_VERSION,
 		stageId: stage.id,
 		...(stage.seed ? { seed: stage.seed } : {}),
-		commands: commands.map(cloneCommand)
+		commands: commands.map((command) => scaleCommandToBaseWorld(command, sourceSize))
 	};
 }
 
@@ -62,8 +62,18 @@ function normalizeCommand(value: unknown): ReplayCommand {
 	return { type: value.type, point: { x, y } };
 }
 
-function cloneCommand(command: ReplayCommand): ReplayCommand {
-	return command.type === 'end' ? command : { type: command.type, point: { ...command.point } };
+function scaleCommandToBaseWorld(command: ReplayCommand, sourceSize: CanvasSize): ReplayCommand {
+	if (command.type === 'end') return command;
+	if (!Number.isFinite(sourceSize.width) || !Number.isFinite(sourceSize.height) || sourceSize.width <= 0 || sourceSize.height <= 0) {
+		throw new Error('replay 원본 화면 크기가 올바르지 않습니다.');
+	}
+	return {
+		type: command.type,
+		point: {
+			x: (command.point.x / sourceSize.width) * BASE_WORLD.width,
+			y: (command.point.y / sourceSize.height) * BASE_WORLD.height
+		}
+	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

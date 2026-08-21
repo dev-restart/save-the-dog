@@ -4,45 +4,50 @@ import Matter from 'matter-js';
 // Svelte 컴포넌트는 입력/수명주기만 연결하고, 실제 게임 규칙은 이 클래스 아래 모듈에서 처리한다.
 import { PHYSICS } from '../constants.js';
 import { clamp, scaleLengthX, scaleLengthY, scalePoint } from '../geometry.js';
-import type { CanvasSize, GamePhase, ObstacleData, ObstacleType, Point, SkinId, StageData } from '../types.js';
+import { BASE_WORLD, type CanvasSize, type GamePhase, type ObstacleData, type Point, type SkinId, type StageData } from '../types.js';
 import { BeeSystem } from './BeeSystem.js';
 import { CanvasRenderer } from './CanvasRenderer.js';
-import { setupCollisionEvents, type BombDetonation, type DogHit } from './CollisionHandler.js';
-import { DrawingSystem } from './DrawingSystem.js';
+import { setupCollisionEvents, type BombDetonation, type CrateDamage, type DogHit } from './CollisionHandler.js';
+import { DrawingSystem, type NoDrawZone } from './DrawingSystem.js';
 import { ObjectFactory } from './ObjectFactory.js';
 import { FixedStepClock } from './GameLoopClock.js';
 import { enforceDogDrawingContainment, isPointInsideClosedDrawing } from './BeeBarrierGuard.js';
 
 import { calculateStageScore, type StageScore } from '../scoring.js';
+import { getObstacleSpec } from '../obstacle-registry.js';
 import { createStageReplay, type ReplayCommand, type StageReplay } from '../replay.js';
+import { placeDogOnNearbySupport } from '../stages/dog-start-position.js';
+import { compileTerrainPrefab } from '../terrain/terrain-compiler.js';
+import { advanceBombFuses, consumeBombFuse, createBombFuseState, selectBombBlastTargets } from './SimulationRules.js';
 
-// 선은 고정 지형과 웅덩이 내부를 침범할 수 없다. 폭탄·굴림돌처럼 시뮬레이션 뒤에
-// 움직여야 하는 오브젝트는 제외해, 그려진 선과 충돌하거나 폭발을 유발할 수 있게 둔다.
-const DRAW_BLOCKING_OBSTACLE_TYPES = new Set<ObstacleType>([
-	'ground',
-	'platform',
-	'spike',
-	'wall',
-	'water',
-	'lava',
-	'brick',
-	'terrain-block',
-	'wood',
-	'crate',
-	'acid',
-	'ice',
-	'stone',
-	'no-draw-zone',
-	'no-draw-ground',
-	'no-draw-tree',
-	'no-draw-rock'
-]);
+export { advanceBombFuses } from './SimulationRules.js';
 
-export function createDrawingBlockedZones(obstacles: ObstacleData[], size: CanvasSize) {
+const CRATE_BREAKER_DURABILITY = 3;
+const MAX_RENDER_DEVICE_PIXEL_RATIO = 2;
+
+export function createDrawingBlockedZones(obstacles: ObstacleData[], size: CanvasSize): NoDrawZone[] {
 	return obstacles
-		.filter((obstacle) => DRAW_BLOCKING_OBSTACLE_TYPES.has(obstacle.type))
-		.map((obstacle) => {
+		.filter((obstacle) => getObstacleSpec(obstacle.type).blocksDrawing)
+		.flatMap<NoDrawZone>((obstacle) => {
 			const point = scalePoint({ x: obstacle.x, y: obstacle.y }, size);
+			if (obstacle.prefabId) {
+				const source = compileTerrainPrefab(obstacle.prefabId);
+				const compiled = compileTerrainPrefab(obstacle.prefabId, {
+					position: point,
+					rotation: obstacle.angle ?? 0,
+					scale: {
+						x: scaleLengthX(obstacle.width, size) / source.bounds.width,
+						y: scaleLengthY(obstacle.height, size) / source.bounds.height
+					}
+				});
+				return compiled.noDraw.polygons.map((polygon) => ({
+					x: (compiled.bounds.min.x + compiled.bounds.max.x) / 2,
+					y: (compiled.bounds.min.y + compiled.bounds.max.y) / 2,
+					width: compiled.bounds.width,
+					height: compiled.bounds.height,
+					vertices: polygon.vertices.map((vertex) => ({ x: vertex.x, y: vertex.y }))
+				}));
+			}
 			return {
 				x: point.x,
 				y: point.y,
@@ -51,28 +56,6 @@ export function createDrawingBlockedZones(obstacles: ObstacleData[], size: Canva
 				angle: obstacle.angle
 			};
 		});
-}
-
-export function advanceBombFuses(
-	world: Matter.World,
-	bombFuseElapsedMs: Map<number, number>,
-	stepMs: number,
-	onFuseElapsed: (bomb: Matter.Body) => void
-): void {
-	for (const [bombId, elapsedMs] of bombFuseElapsedMs) {
-		const bomb = Matter.Composite.allBodies(world).find((body) => body.id === bombId && body.label === 'bomb');
-		if (!bomb) {
-			bombFuseElapsedMs.delete(bombId);
-			continue;
-		}
-
-		const nextElapsedMs = elapsedMs + stepMs;
-		if (nextElapsedMs >= PHYSICS.bombFuseMs) {
-			onFuseElapsed(bomb);
-		} else {
-			bombFuseElapsedMs.set(bombId, nextElapsedMs);
-		}
-	}
 }
 
 interface GameEngineCallbacks {
@@ -102,14 +85,18 @@ export class GameEngine {
 	private phase: GamePhase = 'ready';
 	private animationFrame = 0;
 	private survivalElapsedMs = 0;
-	private size: CanvasSize = { width: 390, height: 693 };
+	private size: CanvasSize = { ...BASE_WORLD };
+	private displaySize: CanvasSize = { ...BASE_WORLD };
 	private cleanupCollision: (() => void) | null = null;
 	private beesActive = false;
 	private simulationSpeed: 1 | 2 | 3 = 1;
 	private bombFuseElapsedMs = new Map<number, number>();
+	private crateBreakerHits = new Map<number, number>();
 	private replayCommands: ReplayCommand[] = [];
 	private dogPositionBeforePhysics: Point | null = null;
 	private dogContainedDrawingIds = new Set<number>();
+	private isDestroyed = false;
+	private isRenderPaused = false;
 
 	constructor(
 		private canvas: HTMLCanvasElement,
@@ -129,17 +116,21 @@ export class GameEngine {
 		this.engine.gravity.y = 0;
 		this.resize();
 		this.setupWorld();
+		this.attachLifecycleListeners();
 	}
 
 	start(): void {
+		if (this.isDestroyed) return;
 		this.callbacks.onPhaseChange(this.phase);
 		this.callbacks.onInkChange(1);
 		this.callbacks.onTimerChange(0);
 		this.loopClock.reset();
-		this.animationFrame = requestAnimationFrame(this.renderLoop);
+		this.resumeRendering();
 	}
 
 	destroy(): void {
+		this.isDestroyed = true;
+		this.detachLifecycleListeners();
 		if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
 		this.cleanupCollision?.();
 		this.setBeesActive(false);
@@ -150,14 +141,13 @@ export class GameEngine {
 
 	resize(): void {
 		const rect = this.canvas.getBoundingClientRect();
-		const ratio = window.devicePixelRatio || 1;
+		const ratio = this.getRenderPixelRatio();
 		const width = Math.max(1, rect.width);
 		const height = Math.max(1, rect.height);
 
 		this.canvas.width = Math.floor(width * ratio);
 		this.canvas.height = Math.floor(height * ratio);
-		this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-		this.size = { width, height };
+		this.displaySize = { width, height };
 	}
 
 	setSimulationSpeed(speed: 1 | 2 | 3): void {
@@ -166,6 +156,7 @@ export class GameEngine {
 
 	beginDrawing(point: Point): void {
 		if (this.phase !== 'ready') return;
+		if (!this.isInsidePlayableViewport(point)) return;
 		const clampedPoint = this.clampPoint(point);
 		if (!this.drawing.start(clampedPoint)) return;
 		this.replayCommands = [{ type: 'start', point: clampedPoint }];
@@ -218,21 +209,22 @@ export class GameEngine {
 		this.engine.gravity.y = 0;
 		this.survivalElapsedMs = 0;
 		this.dogContainedDrawingIds.clear();
+		this.crateBreakerHits.clear();
 
 		const walls = ObjectFactory.createWalls(this.size);
-		this.dogBody = ObjectFactory.createDog(this.stage.dog, this.size);
+		const dogStart = placeDogOnNearbySupport(this.stage).dog;
+		this.dogBody = ObjectFactory.createDog(dogStart, this.size);
 		const hives = this.stage.hives.map((hive) => ObjectFactory.createHive({ x: hive.x, y: hive.y }, this.size));
 		const obstacles = this.stage.obstacles.map((obstacle) => ObjectFactory.createObstacle(obstacle, this.size));
-		this.bombFuseElapsedMs = new Map(
-			obstacles.filter((body) => body.label === 'bomb').map((body) => [body.id, 0])
-		);
+		this.bombFuseElapsedMs = createBombFuseState(obstacles);
 
 		Matter.Composite.add(this.world, [...walls, ...obstacles, ...hives, this.dogBody]);
 		this.beeSystem = new BeeSystem(this.stage.hives, this.world, this.size, this.stage.id, this.stage.difficulty, this.stage.seed ?? `stage-v1-${this.stage.id}`);
 		this.cleanupCollision = setupCollisionEvents(
 			this.engine,
 			(hit) => this.fail(hit),
-			(detonation) => this.handleBombDetonation(detonation)
+			(detonation) => this.handleBombDetonation(detonation),
+			(damage) => this.handleCrateDamage(damage)
 		);
 
 		// 모든 고정 지형과 웅덩이를 드로잉 금지 영역으로 전달한다. 선 두께만큼
@@ -247,38 +239,96 @@ export class GameEngine {
 		// Matter.js는 유효한 드로잉이 끝난 뒤에만 전진한다. ready/drawing 단계에서
 		// 물리를 돌리면 레벨 24의 굴림돌처럼 입력 전부터 지형이 변한다.
 		if (this.phase === 'simulating' && this.dogBody) {
-			const scaledSteps = tick.steps.map((stepMs) => stepMs * this.simulationSpeed);
-			for (const stepMs of scaledSteps) {
-				const previousDogPosition = { x: this.dogBody.position.x, y: this.dogBody.position.y };
-				this.dogPositionBeforePhysics = previousDogPosition;
-				const beeUpdate = this.beeSystem?.update(stepMs, this.dogBody);
-				if (beeUpdate?.drawingAttacked) this.callbacks.onDrawingAttacked();
-				if (beeUpdate) this.setBeesActive(beeUpdate.hasActiveBees);
-				Matter.Engine.update(this.engine, stepMs);
-				advanceBombFuses(this.world, this.bombFuseElapsedMs, stepMs, (bomb) => this.detonateBomb(bomb));
-				this.beeSystem?.enforceDrawingBarriers();
-				if (this.phase === 'simulating') {
-					enforceDogDrawingContainment(
-						this.dogBody,
-						this.getDrawingBodies(),
-						previousDogPosition,
-						undefined,
-						this.dogContainedDrawingIds
-					);
+			physics: for (const fixedStepMs of tick.steps) {
+				for (let repeat = 0; repeat < this.simulationSpeed; repeat += 1) {
+					if (this.phase !== 'simulating') break physics;
+					const stepMs = Math.min(fixedStepMs, this.stage.survivalMs - this.survivalElapsedMs);
+					if (stepMs <= 0) break physics;
+					const previousDogPosition = { x: this.dogBody.position.x, y: this.dogBody.position.y };
+					this.dogPositionBeforePhysics = previousDogPosition;
+					const beeUpdate = this.beeSystem?.update(stepMs, this.dogBody);
+					if (beeUpdate?.drawingAttacked) this.callbacks.onDrawingAttacked();
+					if (beeUpdate) this.setBeesActive(beeUpdate.hasActiveBees);
+					Matter.Engine.update(this.engine, stepMs);
+					advanceBombFuses(this.world, this.bombFuseElapsedMs, stepMs, (bomb) => this.detonateBomb(bomb));
+					this.beeSystem?.enforceDrawingBarriers();
+					if (this.phase === 'simulating') {
+						enforceDogDrawingContainment(
+							this.dogBody,
+							this.getDrawingBodies(),
+							previousDogPosition,
+							undefined,
+							this.dogContainedDrawingIds
+						);
+					}
+					this.survivalElapsedMs += stepMs;
 				}
 			}
 
-			this.survivalElapsedMs += tick.simulationDeltaMs * this.simulationSpeed;
 			this.callbacks.onTimerChange(this.survivalElapsedMs);
 
-			if (this.survivalElapsedMs >= this.stage.survivalMs) {
+			if (this.phase === 'simulating' && this.survivalElapsedMs >= this.stage.survivalMs) {
 				this.clear();
 			}
 		}
 
-		this.renderer.draw(this.ctx, this.world, this.phase, this.drawing.getPoints(), this.drawing.getInkRatio(), timestamp);
+		const viewport = this.getPlayableViewport();
+		const ratio = this.getRenderPixelRatio();
+		this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+		this.ctx.clearRect(0, 0, this.displaySize.width, this.displaySize.height);
+		this.ctx.setTransform(ratio * viewport.scale, 0, 0, ratio * viewport.scale, ratio * viewport.offsetX, ratio * viewport.offsetY);
+		this.renderer.draw(this.ctx, this.world, this.phase, this.drawing.getPoints(), this.drawing.getInkRatio(), timestamp, this.size);
 		this.animationFrame = requestAnimationFrame(this.renderLoop);
 	};
+
+	private attachLifecycleListeners(): void {
+		if (typeof document === 'undefined' || typeof window === 'undefined') return;
+		document.addEventListener('visibilitychange', this.handleVisibilityChange);
+		window.addEventListener('pagehide', this.handlePageHide);
+		window.addEventListener('pageshow', this.handlePageShow);
+	}
+
+	private detachLifecycleListeners(): void {
+		if (typeof document === 'undefined' || typeof window === 'undefined') return;
+		document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+		window.removeEventListener('pagehide', this.handlePageHide);
+		window.removeEventListener('pageshow', this.handlePageShow);
+	}
+
+	private handleVisibilityChange = (): void => {
+		if (document.hidden) {
+			this.pauseRendering();
+			return;
+		}
+		this.resumeRendering();
+	};
+
+	private handlePageHide = (): void => {
+		this.pauseRendering();
+	};
+
+	private handlePageShow = (): void => {
+		this.resumeRendering();
+	};
+
+	private pauseRendering(): void {
+		if (this.animationFrame) cancelAnimationFrame(this.animationFrame);
+		this.animationFrame = 0;
+		this.isRenderPaused = true;
+	}
+
+	private resumeRendering(): void {
+		if (this.isDestroyed || this.animationFrame) return;
+		if (typeof document !== 'undefined' && document.hidden) return;
+		this.isRenderPaused = false;
+		this.loopClock.reset();
+		this.animationFrame = requestAnimationFrame(this.renderLoop);
+	}
+
+	private getRenderPixelRatio(): number {
+		if (typeof window === 'undefined') return 1;
+		return Math.min(window.devicePixelRatio || 1, MAX_RENDER_DEVICE_PIXEL_RATIO);
+	}
 
 	private clear(): void {
 		if (this.phase !== 'simulating') return;
@@ -292,7 +342,7 @@ export class GameEngine {
 			survivalMs: this.stage.survivalMs
 		});
 		this.callbacks.onPhaseChange(this.phase);
-		this.callbacks.onCleared(score, createStageReplay(this.stage, this.replayCommands));
+		this.callbacks.onCleared(score, createStageReplay(this.stage, this.replayCommands, this.size));
 	}
 
 	private fail(hit: DogHit): void {
@@ -337,33 +387,69 @@ export class GameEngine {
 		this.detonateBomb(bombBody);
 	}
 
+	private handleCrateDamage({ reason, crateBody }: CrateDamage): void {
+		if (this.phase !== 'simulating' || !Matter.Composite.get(this.world, crateBody.id, 'body')) return;
+		if (reason === 'drawing-impact') {
+			this.destroyCrate(crateBody);
+			return;
+		}
+
+		const hits = (this.crateBreakerHits.get(crateBody.id) ?? 0) + 1;
+		if (hits >= CRATE_BREAKER_DURABILITY) {
+			this.destroyCrate(crateBody);
+		} else {
+			this.crateBreakerHits.set(crateBody.id, hits);
+		}
+	}
+
+	private destroyCrate(crateBody: Matter.Body): void {
+		this.crateBreakerHits.delete(crateBody.id);
+		this.renderer.triggerExplosion(crateBody.position);
+		Matter.Composite.remove(this.world, crateBody);
+	}
+
 	private detonateBomb(bombBody: Matter.Body): void {
-		if (!this.bombFuseElapsedMs.has(bombBody.id)) return;
-		this.bombFuseElapsedMs.delete(bombBody.id);
+		if (!consumeBombFuse(this.bombFuseElapsedMs, bombBody)) return;
 
 		const dog = this.dogBody;
-		const blastRadius = PHYSICS.bombBlastRadius;
-		const distanceToDog = dog ? Math.hypot(dog.position.x - bombBody.position.x, dog.position.y - bombBody.position.y) : Infinity;
+		const blast = selectBombBlastTargets(Matter.Composite.allBodies(this.world), bombBody, dog);
 		this.renderer.triggerExplosion(bombBody.position);
 
-		for (const drawing of Matter.Composite.allBodies(this.world)) {
-			if (drawing.label !== 'drawing') continue;
-			const bodyRadius = drawing.circleRadius ?? Math.hypot(drawing.bounds.max.x - drawing.bounds.min.x, drawing.bounds.max.y - drawing.bounds.min.y) / 2;
-			if (Math.hypot(drawing.position.x - bombBody.position.x, drawing.position.y - bombBody.position.y) <= blastRadius + bodyRadius) {
-				Matter.Composite.remove(this.world, drawing);
-			}
+		for (const body of blast.destroyedBodies) {
+			if (body.label === 'crate') this.destroyCrate(body);
+			else Matter.Composite.remove(this.world, body);
 		}
 		Matter.Composite.remove(this.world, bombBody);
 
-		if (distanceToDog <= blastRadius && dog) {
+		if (blast.hitsDog && dog) {
 			this.fail({ reason: 'bomb', dogBody: dog, otherBody: bombBody });
 		}
 	}
 
 	private clampPoint(point: Point): Point {
+		const viewport = this.getPlayableViewport();
 		return {
-			x: clamp(point.x, 0, this.size.width),
-			y: clamp(point.y, 0, this.size.height)
+			x: clamp((point.x - viewport.offsetX) / viewport.scale, 0, this.size.width),
+			y: clamp((point.y - viewport.offsetY) / viewport.scale, 0, this.size.height)
+		};
+	}
+
+	private isInsidePlayableViewport(point: Point): boolean {
+		const viewport = this.getPlayableViewport();
+		return (
+			point.x >= viewport.offsetX &&
+			point.x <= viewport.offsetX + this.size.width * viewport.scale &&
+			point.y >= viewport.offsetY &&
+			point.y <= viewport.offsetY + this.size.height * viewport.scale
+		);
+	}
+
+	private getPlayableViewport(): { scale: number; offsetX: number; offsetY: number } {
+		const scale = Math.min(this.displaySize.width / this.size.width, this.displaySize.height / this.size.height);
+		return {
+			scale,
+			offsetX: (this.displaySize.width - this.size.width * scale) / 2,
+			offsetY: (this.displaySize.height - this.size.height * scale) / 2
 		};
 	}
 

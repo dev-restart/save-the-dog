@@ -14,7 +14,7 @@
 	import { triggerHaptic } from '$lib/game/haptics.js';
 	import type { StageScore } from '$lib/game/scoring.js';
 	import type { StageReplay } from '$lib/game/replay.js';
-	import { CHALLENGE_STAGE_MAX, isChallengeStage } from '$lib/game/stages/challenge.js';
+	import { CAMPAIGN_STAGE_COUNT } from '$lib/game/stages/campaign.js';
 	import { getStage } from '$lib/game/stages/index.js';
 	import {
 		cloneStageMapDocument,
@@ -24,7 +24,7 @@
 		type StageMapDocument
 	} from '$lib/game/stages/stage-map-schema.js';
 	import type { CustomMapRecord } from '$lib/game/state/game-persistence.js';
-	import type { OnlineMap, OnlineMapSummary, OnlineIdentity } from '$lib/game/online/types.js';
+	import type { OnlineMap, OnlineMapSummary, OnlineIdentity, PlayerProgress } from '$lib/game/online/types.js';
 	import type { GamePhase, SkinId, StageData } from '$lib/game/types.js';
 
 	const session = new GameSessionState();
@@ -53,8 +53,12 @@
 		void session.load().then(async () => {
 			if (!mounted) return;
 			await initializeOnlineIdentity();
-			await refreshCustomMaps();
-			await importMapFromUrl();
+			if (onlineState === 'ready') {
+				await synchronizeServerData();
+				await importMapFromUrl();
+			} else if (onlineState === 'offline') {
+				customMaps = await session.listCustomMaps();
+			}
 			if (!mounted) return;
 			audioManager.setPreferences(session.getAudioPreferences());
 			audioManager.setSkin(session.skin);
@@ -91,16 +95,43 @@
 		}
 	}
 
-	async function createOnlineIdentity(nickname?: string): Promise<void> {
+	async function createOnlineIdentity(nickname: string, password: string): Promise<void> {
 		const response = await fetch('/api/identity', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(nickname ? { nickname } : {})
+			body: JSON.stringify({ nickname, password })
 		});
 		const body = (await response.json()) as OnlineIdentity & { message?: string };
-		if (!response.ok) throw new Error(body.message ?? '닉네임을 만들지 못했습니다.');
+		if (!response.ok) throw new Error(body.message ?? '계정을 만들지 못했습니다.');
 		onlineIdentity = body;
 		onlineState = 'ready';
+		await synchronizeServerData();
+	}
+
+	async function loginOnlineIdentity(nickname: string, password: string): Promise<void> {
+		const response = await fetch('/api/identity', {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ nickname, password })
+		});
+		const body = (await response.json()) as OnlineIdentity & { message?: string };
+		if (!response.ok) throw new Error(body.message ?? '로그인하지 못했습니다.');
+		onlineIdentity = body;
+		onlineState = 'ready';
+		await synchronizeServerData();
+	}
+
+	async function synchronizeServerData(): Promise<void> {
+		await refreshServerProgress();
+		await refreshCustomMaps();
+	}
+
+	async function refreshServerProgress(): Promise<void> {
+		if (onlineState !== 'ready') return;
+		const response = await fetch('/api/progress', { cache: 'no-store' });
+		const body = (await response.json()) as { progress?: PlayerProgress; message?: string };
+		if (!response.ok || !body.progress) throw new Error(body.message ?? '게임 진행도를 불러오지 못했습니다.');
+		session.applyServerProgress(body.progress);
 	}
 
 	$effect(() => {
@@ -124,7 +155,7 @@
 	function continueGame(): void {
 		audioManager.unlock();
 		customStage = null;
-		session.start(Math.min(CHALLENGE_STAGE_MAX, session.highestStage));
+		session.start(Math.min(CAMPAIGN_STAGE_COUNT, session.highestStage));
 		resetStageUi();
 		resetKey += 1;
 	}
@@ -148,7 +179,7 @@
 			returnToCustomMaps();
 			return;
 		}
-		if (session.currentStage >= CHALLENGE_STAGE_MAX) {
+		if (session.currentStage >= CAMPAIGN_STAGE_COUNT) {
 			returnToMenu();
 			return;
 		}
@@ -175,22 +206,24 @@
 	function handleClear(score: StageScore, replay: StageReplay): void {
 		session.markCleared(score, MAX_HINT_VIEWS_PER_STAGE - hintViewsRemaining);
 		void submitStageTelemetry('cleared', 'none', score.inkRatio, session.survivalElapsedMs).catch(() => undefined);
-		if (!session.isCustomStage && isChallengeStage(stage.id)) {
-			void submitChallengeReplay(replay).catch(() => undefined);
+		if (!session.isCustomStage) {
+			void submitStageReplay(replay).catch(() => refreshServerProgress().catch(() => undefined));
 		}
 		if (session.isCustomStage && activeCustomOnlineMapId) {
 			void submitCustomMapReplay(activeCustomOnlineMapId, replay).catch(() => undefined);
 		}
 	}
 
-	async function submitChallengeReplay(replay: StageReplay): Promise<void> {
+	async function submitStageReplay(replay: StageReplay): Promise<void> {
 		if (onlineState !== 'ready') return;
-		const response = await fetch('/api/challenges/replay', {
+		const response = await fetch('/api/game/replay', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ replay })
 		});
-		if (!response.ok) return;
+		const body = (await response.json()) as { progress?: PlayerProgress; message?: string };
+		if (!response.ok) throw new Error(body.message ?? '서버에서 게임 결과를 검증하지 못했습니다.');
+		if (body.progress) session.applyServerProgress(body.progress);
 	}
 
 	function handleFail(reason?: string): void {
@@ -280,7 +313,15 @@
 	}
 
 	async function saveCustomMap(document: StageMapDocument, id?: string): Promise<CustomMapRecord> {
-		const record = await session.saveCustomMap(document, id);
+		if (onlineState !== 'ready') throw new Error('내 지도를 저장하려면 로그인이 필요합니다.');
+		const response = await fetch('/api/my/maps', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ document, mapId: id })
+		});
+		const record = (await response.json()) as CustomMapRecord & { message?: string };
+		if (!response.ok) throw new Error(record.message ?? '내 지도를 저장하지 못했습니다.');
+		await session.cacheCustomMap(record);
 		await refreshCustomMaps();
 		return record;
 	}
@@ -290,11 +331,10 @@
 		const response = await fetch('/api/maps', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ document: record.document, mapId: record.onlineMapId })
+			body: JSON.stringify({ document: record.document, mapId: record.onlineMapId, ownerMapId: record.id })
 		});
 		const body = (await response.json()) as OnlineMapSummary & { message?: string };
 		if (!response.ok) throw new Error(body.message ?? '온라인 공유에 실패했습니다.');
-		await session.saveCustomMap(record.document, record.id, body.mapId, null);
 		await refreshCustomMaps();
 	}
 
@@ -302,29 +342,28 @@
 		const response = await fetch(`/api/maps/${encodeURIComponent(map.mapId)}`, { cache: 'no-store' });
 		const body = (await response.json()) as OnlineMap & { message?: string };
 		if (!response.ok || !body.document) throw new Error(body.message ?? '온라인 지도를 내려받지 못했습니다.');
-		await session.saveCustomMap(body.document, undefined, undefined, map.mapId);
-		await refreshCustomMaps();
-	}
-
-	async function submitPlayerLeaderboard(): Promise<void> {
-		if (onlineState !== 'ready') throw new Error('랭킹을 등록하려면 온라인 닉네임이 필요합니다.');
-		const response = await fetch('/api/leaderboard', {
+		const saveResponse = await fetch('/api/my/maps', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ highestStage: session.highestStage, totalStars: session.totalStars, totalClears: session.totalClears })
+			body: JSON.stringify({ document: body.document, sourceOnlineMapId: map.mapId })
 		});
-		const body = (await response.json()) as { message?: string };
-		if (!response.ok) throw new Error(body.message ?? '랭킹 등록에 실패했습니다.');
+		const saved = (await saveResponse.json()) as CustomMapRecord & { message?: string };
+		if (!saveResponse.ok) throw new Error(saved.message ?? '내 지도에 저장하지 못했습니다.');
+		await session.cacheCustomMap(saved);
+		await refreshCustomMaps();
 	}
 
 	async function importCustomMap(shareCode: string): Promise<void> {
 		const document = decodeSharedStageMap(shareCode);
-		const record = await session.saveCustomMap(document);
+		const record = await saveCustomMap(document);
 		importedMapTitle = record.title;
-		await refreshCustomMaps();
 	}
 
 	async function deleteCustomMap(record: CustomMapRecord): Promise<void> {
+		if (onlineState !== 'ready') throw new Error('내 지도를 삭제하려면 로그인이 필요합니다.');
+		const response = await fetch(`/api/my/maps/${encodeURIComponent(record.id)}`, { method: 'DELETE' });
+		const body = (await response.json()) as { message?: string };
+		if (!response.ok) throw new Error(body.message ?? '내 지도를 삭제하지 못했습니다.');
 		await session.deleteCustomMap(record.id);
 		await refreshCustomMaps();
 	}
@@ -360,7 +399,20 @@
 	}
 
 	async function refreshCustomMaps(): Promise<void> {
-		customMaps = await session.listCustomMaps();
+		if (onlineState !== 'ready') {
+			customMaps = await session.listCustomMaps();
+			return;
+		}
+		try {
+			const response = await fetch('/api/my/maps', { cache: 'no-store' });
+			const body = (await response.json()) as { maps?: CustomMapRecord[]; message?: string };
+			if (!response.ok) throw new Error(body.message ?? '내 지도를 불러오지 못했습니다.');
+			customMaps = body.maps ?? [];
+			await session.replaceCustomMapCache(customMaps);
+		} catch (cause) {
+			customMaps = await session.listCustomMaps();
+			console.warn('내 지도 서버 동기화에 실패해 IndexedDB cache를 사용합니다.', cause);
+		}
 	}
 
 	async function importMapFromUrl(): Promise<void> {
@@ -388,6 +440,16 @@
 	{#if !session.isLoaded}
 		<div class="grid size-full place-items-center bg-sky-100 text-sm font-semibold text-slate-700" role="status">
 			저장 데이터를 불러오는 중...
+		</div>
+	{:else if onlineState === 'onboarding'}
+		<NicknameOnboarding onRegister={createOnlineIdentity} onLogin={loginOnlineIdentity} />
+	{:else if onlineState === 'offline'}
+		<div class="grid size-full place-items-center bg-slate-950 p-6 text-center text-white" role="alert">
+			<div class="grid max-w-xs gap-3">
+				<strong class="text-lg">로그인 서버에 연결할 수 없습니다.</strong>
+				<span class="text-sm text-slate-300">네트워크 상태를 확인한 뒤 다시 시도해 주세요.</span>
+				<button class="rounded-xl bg-white px-4 py-3 font-black text-slate-900" onclick={() => void initializeOnlineIdentity()}>다시 연결</button>
+			</div>
 		</div>
 	{:else if session.hasStarted}
 		<div class="relative size-full overflow-hidden">
@@ -432,8 +494,6 @@
 				onMenu={session.isCustomStage ? returnToCustomMaps : returnToMenu}
 			/>
 		</div>
-	{:else if onlineState === 'onboarding'}
-		<NicknameOnboarding onCreate={createOnlineIdentity} />
 	{:else if menuView === 'editor'}
 		{#key editorKey}
 			<MapEditor
@@ -468,7 +528,6 @@
 			totalStars={session.totalStars}
 			skin={session.skin}
 			onBack={() => (menuView = 'menu')}
-			onSubmit={submitPlayerLeaderboard}
 		/>
 	{:else}
 		<MainMenu

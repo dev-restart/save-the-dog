@@ -1,5 +1,6 @@
 import { PHYSICS } from '../constants.js';
 import type { HiveData, ObstacleData, Point, StageData, StageDesignType, StageEnvironment } from '../types.js';
+import { applyCampaignTerrainPattern } from './campaign-terrain-patterns.js';
 import stageOverrides from './stage-overrides.json';
 
 const ground = { type: 'ground' as const, x: 195, y: 660, width: 390, height: 20 };
@@ -128,7 +129,7 @@ export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 			{ type: 'water', x: 76, y: 632, width: 96, height: 36 },
 			{ type: 'lava', x: 286, y: 632, width: 166, height: 36 },
 			{ type: 'wood', x: 284, y: 475, width: 102, height: 16, angle: -0.12 },
-			{ type: 'boulder', x: 153, y: 620, width: 60, height: 60 }
+			{ type: 'stone', x: 153, y: 620, width: 60, height: 60 }
 		],
 		inkLimit: 520,
 		survivalMs: 5200,
@@ -137,7 +138,7 @@ export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 		objectiveLabel: '기둥 옆 통로 봉쇄',
 		objectiveHint: '중앙 벽 왼쪽 포켓을 덮고, 벌이 기둥 위로 우회하지 못하게 끝을 발판에 닿게 하세요.',
 		dangerLabel: '우회 벌 + 양쪽 함정',
-		designerNote: '기둥과 바위는 선을 걸 수 있는 지지점입니다. 벌의 우회 경로와 하단 함정을 함께 고려하게 합니다.'
+		designerNote: '기둥과 고정 바위는 선을 걸 수 있는 지지점입니다. 벌의 우회 경로와 하단 함정을 함께 고려하게 합니다.'
 	},
 	// Stage 6: 쉬운 레벨 (비선형 난이도 - 긴장 완화)
 	{
@@ -196,7 +197,7 @@ export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 			{ type: 'brick', x: 44, y: 550, width: 34, height: 150 },
 			{ type: 'water', x: 104, y: 632, width: 164, height: 36 },
 			{ type: 'lava', x: 304, y: 632, width: 92, height: 36 },
-			{ type: 'bomb', x: 294, y: 570, width: 40, height: 40 }
+			{ type: 'crate', x: 294, y: 570, width: 40, height: 40 }
 		],
 		inkLimit: 460,
 		survivalMs: 5400,
@@ -204,7 +205,7 @@ export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 		designType: 'anchor-wall',
 		objectiveLabel: '벽에 기대기',
 		objectiveHint: '오른쪽 긴 벽과 낮은 발판을 연결한 덮개를 그려, 아래 물길과 용암을 동시에 피하세요.',
-		dangerLabel: '벽 우회 + 낙하 + 폭탄',
+		dangerLabel: '벽 우회 + 낙하',
 		designerNote: 'breaker 역할의 벌은 방어선 가까운 지점을 압박합니다. 선은 강체로 형태를 유지하지만 중력과 충돌에는 반응합니다.'
 	},
 	// Stage 9: 측면 포켓 (우회 경로 차단)
@@ -345,7 +346,7 @@ export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 			{ type: 'brick', x: 240, y: 520, width: 34, height: 210 },
 			{ type: 'wood', x: 174, y: 542, width: 114, height: 16, angle: 0.1 },
 			{ type: 'wood', x: 320, y: 505, width: 82, height: 16, angle: -0.18 },
-			{ type: 'bomb', x: 320, y: 470, width: 40, height: 40 }
+			{ type: 'crate', x: 320, y: 470, width: 40, height: 40 }
 		],
 		inkLimit: 400,
 		survivalMs: 5900,
@@ -353,7 +354,7 @@ export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 		designType: 'fall-catch',
 		objectiveLabel: '공중에서 받침 만들기',
 		objectiveHint: '공중의 강아지 아래에서 중앙 기둥까지 선을 내리고, 위쪽을 덮어 낙하와 벌을 함께 막으세요.',
-		dangerLabel: '낙하 + breaker 벌 + 폭탄',
+		dangerLabel: '낙하 + breaker 벌',
 		designerNote: '낙하를 막는 선이 그대로 측면 차단벽도 되도록 설계한 복합 공략입니다.'
 	},
 	// Stage 15: 반대 경사 (미러 퍼즐)
@@ -421,7 +422,7 @@ export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 			{ type: 'water', x: 78, y: 632, width: 102, height: 36 },
 			{ type: 'spike', x: 232, y: 638, width: 116, height: 24 },
 			{ type: 'lava', x: 350, y: 632, width: 46, height: 36 },
-			{ type: 'boulder', x: 280, y: 580, width: 54, height: 54 }
+			{ type: 'stone', x: 280, y: 580, width: 54, height: 54 }
 		],
 		inkLimit: 365,
 		survivalMs: 6200,
@@ -429,7 +430,7 @@ export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 		designType: 'slope-slide',
 		objectiveLabel: '계단형 낙하 방지',
 		objectiveHint: '왼쪽 상단에서 시작해 계단 발판에 걸치는 선을 만들고, 중앙 가시 위로 미끄러지지 않게 덮으세요.',
-		dangerLabel: '계단 + 가시 + 물 + 바위',
+		dangerLabel: '계단 + 가시 + 물',
 		designerNote: '선의 끝이 비어 있으면 낙하 방지선이지만, 계단 두 점을 잇으면 벌 차단벽까지 겸합니다.'
 	},
 	// Stage 18: 역방향 계단 (미러)
@@ -518,15 +519,15 @@ export const STATIC_STAGE_BLUEPRINTS: StageData[] = [
 
 export function applyStageOverride(stage: StageData): StageData {
 	const override = STAGE_OVERRIDES[String(stage.id)];
-	if (!override) return stage;
+	if (!override) return applyCampaignTerrainPattern(stage);
 
-	return {
+	return applyCampaignTerrainPattern({
 		...stage,
 		dog: override.dog ?? stage.dog,
 		hives: override.hives ?? stage.hives,
 		obstacles: resolveStageObstacles(stage, override),
 		inkLimit: override.inkLimit ?? stage.inkLimit,
-		survivalMs: Math.max(override.survivalMs ?? stage.survivalMs, PHYSICS.defaultSurvivalMs),
+		survivalMs: override.survivalMs ?? stage.survivalMs,
 		environment: override.environment ?? stage.environment,
 		difficultyLabel: override.difficultyLabel ?? stage.difficultyLabel,
 		designType: override.designType ?? stage.designType,
@@ -534,7 +535,7 @@ export function applyStageOverride(stage: StageData): StageData {
 		objectiveHint: override.objectiveHint ?? stage.objectiveHint,
 		dangerLabel: override.dangerLabel ?? stage.dangerLabel,
 		designerNote: override.designerNote ?? stage.designerNote
-	};
+	});
 }
 
 function resolveStageObstacles(stage: StageData, override: StageOverride): ObstacleData[] {

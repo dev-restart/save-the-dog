@@ -1,37 +1,23 @@
 import Matter from 'matter-js';
 import { PHYSICS } from '$lib/game/constants.js';
 import { DrawingSystem } from '$lib/game/engine/DrawingSystem.js';
+import { createDrawingBlockedZones } from '$lib/game/engine/GameEngine.js';
 import { BeeSystem } from '$lib/game/engine/BeeSystem.js';
 import { ObjectFactory } from '$lib/game/engine/ObjectFactory.js';
+import { enforceDogDrawingContainment, isPointInsideClosedDrawing } from '$lib/game/engine/BeeBarrierGuard.js';
 import { calculateStageScore, type StageScore } from '$lib/game/scoring.js';
 import { BASE_WORLD, type StageData } from '$lib/game/types.js';
 import type { StageReplay } from '$lib/game/replay.js';
+import { placeDogOnNearbySupport } from '$lib/game/stages/dog-start-position.js';
+import {
+	advanceBombFuses,
+	consumeBombFuse,
+	createBombFuseState,
+	selectBombBlastTargets,
+	selectBombCollision
+} from '$lib/game/engine/SimulationRules.js';
 
 const DOG_HIT_LABELS = new Set(['spike', 'water', 'lava', 'bomb', 'acid', 'boulder', 'rolling-boulder', 'deadzone']);
-const BOMB_TRIGGER_LABELS = new Set([
-	'dog',
-	'drawing',
-	'boulder',
-	'rolling-boulder',
-	'ground',
-	'platform',
-	'brick',
-	'terrain-block',
-	'wood',
-	'crate',
-	'ice',
-	'stone',
-	'no-draw-zone',
-	'no-draw-ground',
-	'no-draw-tree',
-	'no-draw-rock',
-	'wall',
-	'water',
-	'lava',
-	'acid',
-	'spike'
-]);
-const DRAW_BLOCKING_TYPES = new Set(['ground', 'platform', 'spike', 'wall', 'water', 'lava', 'brick', 'terrain-block', 'wood', 'crate', 'acid', 'ice', 'stone', 'no-draw-zone', 'no-draw-ground', 'no-draw-tree', 'no-draw-rock']);
 
 export interface VerifiedReplayResult {
 	status: 'cleared' | 'failed';
@@ -46,13 +32,7 @@ export function verifyStageReplay(stage: StageData, replay: StageReplay): Verifi
 	if (stage.seed && replay.seed !== stage.seed) throw new Error('replay seed가 실제 단계와 다릅니다.');
 
 	const drawing = new DrawingSystem(stage.inkLimit);
-	drawing.setNoDrawZones(stage.obstacles.filter((obstacle) => DRAW_BLOCKING_TYPES.has(obstacle.type)).map((obstacle) => ({
-		x: obstacle.x,
-		y: obstacle.y,
-		width: obstacle.width + PHYSICS.drawingThickness,
-		height: obstacle.height + PHYSICS.drawingThickness,
-		angle: obstacle.angle
-	})));
+	drawing.setNoDrawZones(createDrawingBlockedZones(stage.obstacles, BASE_WORLD));
 	let started = false;
 	let ended = false;
 	for (const command of replay.commands) {
@@ -79,22 +59,33 @@ export function verifyStageReplay(stage: StageData, replay: StageReplay): Verifi
 	engine.gravity.y = PHYSICS.gravityY;
 	const world = engine.world;
 	const walls = ObjectFactory.createWalls(BASE_WORLD);
-	const dog = ObjectFactory.createDog(stage.dog, BASE_WORLD);
+	// 실제 GameEngine과 동일한 지지면 보정을 적용해야 client에서 플레이한 위치를
+	// 서버 replay에서도 같은 벌 접근 경로로 판정할 수 있다.
+	const dog = ObjectFactory.createDog(placeDogOnNearbySupport(stage).dog, BASE_WORLD);
 	const hives = stage.hives.map((hive) => ObjectFactory.createHive({ x: hive.x, y: hive.y }, BASE_WORLD));
 	const obstacles = stage.obstacles.map((obstacle) => ObjectFactory.createObstacle(obstacle, BASE_WORLD));
 	Matter.Composite.add(world, [...walls, ...obstacles, ...hives, dog, ...segments]);
 
 	const beeSystem = new BeeSystem(stage.hives, world, BASE_WORLD, stage.id, stage.difficulty, stage.seed ?? `stage-v1-${stage.id}`);
 	beeSystem.start();
-	const bombFuses = new Map(obstacles.filter((body) => body.label === 'bomb').map((body) => [body.id, 0]));
+	const containedDrawingIds = new Set(
+		segments.filter((drawingBody) => isPointInsideClosedDrawing(dog.position, drawingBody)).map((drawingBody) => drawingBody.id)
+	);
+	const bombFuses = createBombFuseState(obstacles);
 	let failedReason: string | undefined;
 	let pendingBeeHits: Array<{ bee: Matter.Body; dog: Matter.Body }> = [];
+	const crateBeeHits = new Map<number, number>();
 	const collisionHandler = (event: Matter.IEventCollision<Matter.Engine>) => {
 		for (const pair of event.pairs) {
-			const bomb = pair.bodyA.label === 'bomb' ? pair.bodyA : pair.bodyB.label === 'bomb' ? pair.bodyB : null;
-			const trigger = bomb === pair.bodyA ? pair.bodyB : bomb === pair.bodyB ? pair.bodyA : null;
-			if (bomb && trigger && BOMB_TRIGGER_LABELS.has(trigger.label)) {
-				detonateBomb(bomb);
+			const bombCollision = selectBombCollision(pair.bodyA, pair.bodyB);
+			if (bombCollision) detonateBomb(bombCollision.bombBody);
+			const crate = pair.bodyA.label === 'crate' ? pair.bodyA : pair.bodyB.label === 'crate' ? pair.bodyB : null;
+			const crateTrigger = crate === pair.bodyA ? pair.bodyB : crate === pair.bodyB ? pair.bodyA : null;
+			if (crate && crateTrigger?.label === 'drawing') Matter.Composite.remove(world, crate);
+			if (crate && crateTrigger?.label === 'bee' && (crateTrigger.plugin as { attackStyle?: string }).attackStyle === 'breaker') {
+				const hits = (crateBeeHits.get(crate.id) ?? 0) + 1;
+				crateBeeHits.set(crate.id, hits);
+				if (hits >= 3) Matter.Composite.remove(world, crate);
 			}
 
 			const dogBody = pair.bodyA.label === 'dog' ? pair.bodyA : pair.bodyB.label === 'dog' ? pair.bodyB : null;
@@ -110,12 +101,14 @@ export function verifyStageReplay(stage: StageData, replay: StageReplay): Verifi
 	while (elapsedMs < stage.survivalMs && !failedReason) {
 		pendingBeeHits = [];
 		const stepMs = Math.min(PHYSICS.fixedDeltaMs, stage.survivalMs - elapsedMs);
+		const previousDogPosition = { x: dog.position.x, y: dog.position.y };
 		const update = beeSystem.update(stepMs, dog);
 		if (update.drawingAttacked) {
 			// 방어선을 미는 동작은 실제 게임과 동일한 BeeSystem 상태만 재현한다.
 		}
 		Matter.Engine.update(engine, stepMs);
 		beeSystem.enforceDrawingBarriers();
+		enforceDogDrawingContainment(dog, segments, previousDogPosition, undefined, containedDrawingIds);
 		for (const hit of pendingBeeHits) {
 			if (!beeSystem.isDogProtectedFromBee(hit.bee, hit.dog)) failedReason ??= 'bee';
 		}
@@ -138,31 +131,10 @@ export function verifyStageReplay(stage: StageData, replay: StageReplay): Verifi
 	};
 
 	function detonateBomb(bomb: Matter.Body): void {
-		if (!bombFuses.has(bomb.id)) return;
-		bombFuses.delete(bomb.id);
-		if (Math.hypot(dog.position.x - bomb.position.x, dog.position.y - bomb.position.y) <= PHYSICS.bombBlastRadius) {
-			failedReason ??= 'bomb';
-		}
-		for (const body of Matter.Composite.allBodies(world)) {
-			if (body.label !== 'drawing') continue;
-			const radius = Math.hypot(body.bounds.max.x - body.bounds.min.x, body.bounds.max.y - body.bounds.min.y) / 2;
-			if (Math.hypot(body.position.x - bomb.position.x, body.position.y - bomb.position.y) <= PHYSICS.bombBlastRadius + radius) {
-				Matter.Composite.remove(world, body);
-			}
-		}
+		if (!consumeBombFuse(bombFuses, bomb)) return;
+		const blast = selectBombBlastTargets(Matter.Composite.allBodies(world), bomb, dog);
+		if (blast.hitsDog) failedReason ??= 'bomb';
+		for (const body of blast.destroyedBodies) Matter.Composite.remove(world, body);
 		Matter.Composite.remove(world, bomb);
-	}
-}
-
-function advanceBombFuses(world: Matter.World, fuses: Map<number, number>, stepMs: number, onFuseElapsed: (bomb: Matter.Body) => void): void {
-	for (const [bombId, elapsedMs] of fuses) {
-		const bomb = Matter.Composite.allBodies(world).find((body) => body.id === bombId && body.label === 'bomb');
-		if (!bomb) {
-			fuses.delete(bombId);
-			continue;
-		}
-		const next = elapsedMs + stepMs;
-		if (next >= PHYSICS.bombFuseMs) onFuseElapsed(bomb);
-		else fuses.set(bombId, next);
 	}
 }

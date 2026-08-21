@@ -31,7 +31,10 @@ export type OptionalSkinAsset =
 	| 'groundCross'
 	| 'dirtWall'
 	| 'stonePillar'
-	| 'terrainBlock';
+	| 'terrainBlock'
+	| 'terrainDirt'
+	| 'terrainGrassCap'
+	| 'terrainStone';
 export type SkinAsset = RequiredSkinAsset | OptionalSkinAsset;
 
 export interface SkinDefinition {
@@ -68,7 +71,7 @@ function skinAssets(id: SkinId): SkinDefinition['assets'] {
 		acid: `/skins/${id}/acid.png`,
 		ice: `/skins/${id}/ice.png`,
 		stone: `/skins/${id}/stone.png`,
-		rollingBoulder: `/skins/${id}/rolling-boulder.png`,
+		rollingBoulder: id === 'classic' ? `/skins/${id}/rolling-boulder.png` : `/skins/${id}/rolling-boulder-v2.png`,
 		// 연결형 지형은 각 스킨 파일을 쓰되, 모두 금지 표식 없는 타일로 통일한다.
 		noDrawZone: `/skins/${id}/no-draw-zone.png`,
 		noDrawGround: `/skins/${id}/no-draw-ground.png`,
@@ -79,8 +82,13 @@ function skinAssets(id: SkinId): SkinDefinition['assets'] {
 		groundCross: `/skins/${id}/ground-cross.png`,
 		dirtWall: `/skins/${id}/dirt-wall.png`,
 		stonePillar: `/skins/${id}/stone-pillar.png`,
-		// 블록 지형은 세 스킨에서 같은 충돌 실루엣을 공유한다. 이후 스킨별 변형을 추가해도 호출부는 유지된다.
-		terrainBlock: '/skins/classic/terrain-block-v2.png'
+		// 충돌 실루엣은 같아도 화면에서는 각 스킨 전용 블록 질감을 사용한다.
+		terrainBlock: `/skins/${id}/terrain-block-v3.png`,
+		// 큰 Compound 지형 안에서도 블록 경계가 끊기지 않도록 잔디가 없는 연결형 fill을 쓴다.
+		// 스킨별 fill이 추가되면 이 경로만 교체하면 된다.
+		terrainDirt: '/skins/classic/terrain-block-fill-v5.png',
+		terrainGrassCap: '/skins/classic/terrain-grass-cap-v4.png',
+		terrainStone: '/skins/classic/terrain-stone-v4.png'
 	};
 }
 

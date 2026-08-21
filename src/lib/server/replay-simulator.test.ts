@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { verifyStageReplay } from './replay-simulator.js';
 import { normalizeReplay } from '$lib/game/replay.js';
 import type { StageData } from '$lib/game/types.js';
+import { getStage } from '$lib/game/stages/index.js';
 
 const stage: StageData = {
 	id: 900,
@@ -14,6 +15,25 @@ const stage: StageData = {
 };
 
 describe('server replay simulator', () => {
+	it('1단계의 ㄷ자 지형 위를 닫는 지붕 replay를 서버에서 성공으로 검증한다', () => {
+		const campaignStage = getStage(1);
+		const replay = normalizeReplay({
+			version: 1,
+			stageId: campaignStage.id,
+			commands: [
+				{ type: 'start', point: { x: 120, y: 445 } },
+				{ type: 'move', point: { x: 195, y: 425 } },
+				{ type: 'move', point: { x: 270, y: 445 } },
+				{ type: 'end' }
+			]
+		});
+
+		const result = verifyStageReplay(campaignStage, replay);
+
+		expect(result.status).toBe('cleared');
+		expect(result.score?.stars).toBeGreaterThan(0);
+	});
+
 	it('같은 드로잉 명령을 서버 물리에서 성공으로 재생한다', () => {
 		const replay = normalizeReplay({
 			version: 1,

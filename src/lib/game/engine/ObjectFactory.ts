@@ -1,14 +1,60 @@
 import Matter from 'matter-js';
 import { COLLISION_CATEGORY, PHYSICS } from '../constants.js';
 import { distance, scaleLengthX, scaleLengthY, scalePoint } from '../geometry.js';
-import type { CanvasSize, ObstacleData, Point } from '../types.js';
+import type { BeeAttackStyle, CanvasSize, ObstacleData, Point } from '../types.js';
+import { compileTerrainPrefab } from '../terrain/terrain-compiler.js';
 
 export interface DrawingBodyPlugin {
 	drawingPath?: Point[];
 	drawingThickness?: number;
 }
 
+export interface BeeBodyPlugin {
+	attackStyle?: BeeAttackStyle;
+}
+
 const DRAWING_CLOSURE_DISTANCE = PHYSICS.drawingThickness * 3;
+const DRAWING_SIMPLIFICATION_TOLERANCE = PHYSICS.drawingThickness / 4;
+
+function distanceToSegment(point: Point, start: Point, end: Point): number {
+	const dx = end.x - start.x;
+	const dy = end.y - start.y;
+	const lengthSquared = dx * dx + dy * dy;
+	if (lengthSquared <= Number.EPSILON) return distance(point, start);
+
+	const ratio = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+	return distance(point, {
+		x: start.x + dx * ratio,
+		y: start.y + dy * ratio
+	});
+}
+
+/**
+ * 같은 직선을 손가락으로 천천히 그렸다는 이유만으로 여러 compound part가 생기면
+ * 질량과 충돌 결과가 달라진다. 열린 선의 미세한 입력 흔들림만 정리하고,
+ * 실제로 꺾인 지점은 유지해 client와 replay가 같은 물리 모양을 만들게 한다.
+ */
+function simplifyOpenDrawingPath(points: Point[], tolerance = DRAWING_SIMPLIFICATION_TOLERANCE): Point[] {
+	if (points.length <= 2) return [...points];
+
+	const first = points[0];
+	const last = points.at(-1)!;
+	let furthestIndex = -1;
+	let furthestDistance = tolerance;
+
+	for (let index = 1; index < points.length - 1; index += 1) {
+		const candidateDistance = distanceToSegment(points[index], first, last);
+		if (candidateDistance > furthestDistance) {
+			furthestDistance = candidateDistance;
+			furthestIndex = index;
+		}
+	}
+
+	if (furthestIndex < 0) return [first, last];
+	const before = simplifyOpenDrawingPath(points.slice(0, furthestIndex + 1), tolerance);
+	const after = simplifyOpenDrawingPath(points.slice(furthestIndex), tolerance);
+	return [...before.slice(0, -1), ...after];
+}
 
 function bodyOptions(label: string, category: number, mask: number) {
 	return {
@@ -54,7 +100,7 @@ const OBSTACLE_PHYSICS: Record<string, ObstaclePhysics> = {
 	stone: { isStatic: true, isSensor: false, friction: 0.9, frictionStatic: 0.9, restitution: 0 },
 	wood: { isStatic: true, isSensor: false, friction: 0.72, frictionStatic: 0.9, restitution: 0 },
 	wall: { isStatic: true, isSensor: false, friction: 0.72, frictionStatic: 0.9, restitution: 0 },
-	crate: { isStatic: true, isSensor: false, friction: 0.72, frictionStatic: 0.9, restitution: 0 },
+	crate: { isStatic: false, isSensor: false, friction: 0.72, frictionStatic: 0.9, frictionAir: 0.008, restitution: 0.08, density: 0.006 },
 
 	// 미끄러운 지형
 	ice: { isStatic: true, isSensor: false, friction: 0.03, frictionStatic: 0.04, restitution: 0 },
@@ -65,7 +111,7 @@ const OBSTACLE_PHYSICS: Record<string, ObstaclePhysics> = {
 	lava: { isStatic: true, isSensor: true, friction: 0.72, frictionStatic: 0.9, restitution: 0 },
 	acid: { isStatic: true, isSensor: true, friction: 0.72, frictionStatic: 0.9, restitution: 0 },
 
-	// 폭탄은 퓨즈를 읽을 수 있게 천천히 낙하한다. 지형/선/강아지에 닿으면 퓨즈와 관계없이 즉시 기폭한다.
+	// 폭탄은 퓨즈를 읽을 수 있게 천천히 낙하하고, 지형 위에서는 굴러가거나 멈춘다.
 	bomb: { isStatic: false, isSensor: false, friction: 0.5, frictionStatic: 0.6, frictionAir: 0.18, restitution: 0.1, density: 0.008 },
 
 	// 동적 오브젝트 (중력/충돌에 반응)
@@ -109,9 +155,9 @@ export class ObjectFactory {
 		});
 	}
 
-	static createBee(point: Point, size: CanvasSize): Matter.Body {
+	static createBee(point: Point, size: CanvasSize, attackStyle?: BeeAttackStyle): Matter.Body {
 		const pos = scalePoint(point, size);
-		return Matter.Bodies.circle(pos.x, pos.y, scaleLengthX(PHYSICS.beeRadius, size), {
+		const body = Matter.Bodies.circle(pos.x, pos.y, scaleLengthX(PHYSICS.beeRadius, size), {
 			...bodyOptions(
 				'bee',
 				COLLISION_CATEGORY.bee,
@@ -121,6 +167,11 @@ export class ObjectFactory {
 			restitution: 0.12,
 			density: 0.0008
 		});
+		body.plugin = {
+			...(body.plugin as object),
+			attackStyle
+		} satisfies BeeBodyPlugin;
+		return body;
 	}
 
 	static createObstacle(obstacle: ObstacleData, size: CanvasSize): Matter.Body {
@@ -139,11 +190,41 @@ export class ObjectFactory {
 						? COLLISION_CATEGORY.wall
 						: COLLISION_CATEGORY.ground;
 
-		const isDynamicObject = obstacle.type === 'rolling-boulder' || obstacle.type === 'boulder' || obstacle.type === 'bomb';
+		const isDynamicObject = obstacle.type === 'rolling-boulder' || obstacle.type === 'boulder' || obstacle.type === 'bomb' || obstacle.type === 'crate';
 		const mask = physics.isSensor ? COLLISION_CATEGORY.dog : isDynamicObject ? DYNAMIC_OBJECT_MASK : PHYSICAL_TERRAIN_MASK;
 
+		if (obstacle.prefabId) {
+			const source = compileTerrainPrefab(obstacle.prefabId);
+			const compiled = compileTerrainPrefab(obstacle.prefabId, {
+				position: pos,
+				rotation: obstacle.angle ?? 0,
+				scale: { x: width / source.bounds.width, y: height / source.bounds.height },
+				bodyOptions: {
+					...bodyOptions(label, category, mask),
+					friction: physics.friction,
+					frictionStatic: physics.frictionStatic,
+					restitution: physics.restitution
+				}
+			});
+			const body = Matter.Body.create({
+				...bodyOptions(label, category, mask),
+				parts: [...compiled.physics.bodies],
+				isStatic: true,
+				friction: physics.friction,
+				frictionStatic: physics.frictionStatic,
+				restitution: physics.restitution
+			});
+			body.plugin = {
+				...(body.plugin as object),
+				terrainPrefabId: obstacle.prefabId,
+				terrainSupportSegments: compiled.supportSegments
+			};
+			return body;
+		}
+
 		// 동적 원형 오브젝트 (굴림돌, 바위, 폭탄)
-		if (isDynamicObject && !physics.isStatic) {
+		const isDynamicCircle = obstacle.type === 'rolling-boulder' || obstacle.type === 'boulder' || obstacle.type === 'bomb';
+		if (isDynamicCircle && !physics.isStatic) {
 			const radius = Math.max(width, height) / 2;
 			const body = Matter.Bodies.circle(pos.x, pos.y, radius, {
 				...bodyOptions(label, category, mask),
@@ -167,6 +248,7 @@ export class ObjectFactory {
 			angle: obstacle.angle ?? 0,
 			friction: physics.friction,
 			frictionStatic: physics.frictionStatic,
+			frictionAir: physics.frictionAir,
 			restitution: physics.restitution,
 			density: physics.density
 		});
@@ -206,14 +288,18 @@ export class ObjectFactory {
 	static createDrawingSegments(points: Point[]): Matter.Body[] {
 		if (points.length < 2) return [];
 
-		const stride = Math.max(1, Math.ceil((points.length - 1) / PHYSICS.maxDrawingSegments));
-		const sampled = points.filter((_, index) => index % stride === 0);
-		const lastPoint = points.at(-1);
+		const firstInputPoint = points[0];
+		const lastInputPoint = points.at(-1)!;
+		const isClosedInput = points.length >= 3 && distance(firstInputPoint, lastInputPoint) <= DRAWING_CLOSURE_DISTANCE;
+		const normalizedPoints = isClosedInput ? points : simplifyOpenDrawingPath(points);
+		const stride = Math.max(1, Math.ceil((normalizedPoints.length - 1) / PHYSICS.maxDrawingSegments));
+		const sampled = normalizedPoints.filter((_, index) => index % stride === 0);
+		const lastPoint = normalizedPoints.at(-1);
 		if (lastPoint && sampled.at(-1) !== lastPoint) sampled.push(lastPoint);
 		const firstPoint = sampled[0];
 		const sampledLastPoint = sampled.at(-1);
 		const path =
-			firstPoint && sampledLastPoint && sampled.length >= 3 && distance(firstPoint, sampledLastPoint) <= DRAWING_CLOSURE_DISTANCE
+			firstPoint && sampledLastPoint && isClosedInput
 				? [...sampled.slice(0, -1), firstPoint]
 				: sampled;
 

@@ -43,18 +43,21 @@ export class BeeCombat {
 		this.allBees = allBees;
 	}
 
-	attackDrawings(
-		bee: Matter.Body,
-		dogBody: Matter.Body,
-		drawings: Matter.Body[],
-		deltaMs: number
-	): boolean {
-		if (drawings.length === 0) return false;
-		if (this.profile.combatPushForce <= 0) return false;
-
+	beginStep(drawings: Matter.Body[], deltaMs: number): void {
+		if (drawings.length === 0) return;
+		if (this.profile.combatPushForce <= 0) return;
 		this.clockMs += deltaMs;
 		this.cleanupExpiredFocus();
 		this.trackDrawingDisplacements(drawings);
+	}
+
+	attackDrawings(
+		bee: Matter.Body,
+		dogBody: Matter.Body,
+		drawings: Matter.Body[]
+	): boolean {
+		if (drawings.length === 0) return false;
+		if (this.profile.combatPushForce <= 0) return false;
 
 		const collisions = Matter.Query.collides(bee, drawings);
 		let attacked = false;

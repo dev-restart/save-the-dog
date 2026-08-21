@@ -52,6 +52,8 @@ export class BeeSystem {
 	private bees: Matter.Body[] = [];
 	private beeForceById = new Map<number, number>();
 	private beeAttackStyleById = new Map<number, BeeAttackStyle | undefined>();
+	private beeNavigationIdByBodyId = new Map<number, number>();
+	private nextBeeNavigationId = 1;
 	private combat: BeeCombat;
 	private navigation: BeeNavigation;
 	private profile: BeeDifficultyProfile;
@@ -108,6 +110,7 @@ export class BeeSystem {
 			this.navigation.findLineBlocker.bind(this.navigation),
 			this.bees
 		);
+		this.combat.beginStep(this.bodyCache.drawings, deltaMs);
 
 		for (const bee of this.bees) {
 			if (!this.beeDirectionById.has(bee.id)) {
@@ -117,7 +120,7 @@ export class BeeSystem {
 			const direction = this.beeDirectionById.get(bee.id) ?? { x: 0, y: 0 };
 			const force = hiveForce(direction, this.beeForceById.get(bee.id) ?? 0.002, this.profile.forceMultiplier);
 			Matter.Body.applyForce(bee, bee.position, force);
-			drawingAttacked = this.combat.attackDrawings(bee, dogBody, this.bodyCache.drawings, deltaMs) || drawingAttacked;
+			drawingAttacked = this.combat.attackDrawings(bee, dogBody, this.bodyCache.drawings) || drawingAttacked;
 			capVelocity(bee, this.profile.maxSpeed);
 		}
 
@@ -138,6 +141,8 @@ export class BeeSystem {
 		this.bodyCache = { navigationBodies: [], drawings: [] };
 		this.beeForceById.clear();
 		this.beeAttackStyleById.clear();
+		this.beeNavigationIdByBodyId.clear();
+		this.nextBeeNavigationId = 1;
 		this.combat.clear();
 		this.aiCursor = 0;
 	}
@@ -162,7 +167,7 @@ export class BeeSystem {
 	}
 
 	private spawnBee(hive: HiveData): void {
-		const bee = ObjectFactory.createBee({ x: hive.x, y: hive.y }, this.size);
+		const bee = ObjectFactory.createBee({ x: hive.x, y: hive.y }, this.size, hive.attackStyle);
 		let spawnPosition = bee.position;
 		for (const drawing of this.bodyCache.drawings) {
 			spawnPosition = movePointOutsideClosedDrawing(spawnPosition, drawing);
@@ -175,6 +180,7 @@ export class BeeSystem {
 		Matter.Composite.add(this.world, bee);
 		this.beeForceById.set(bee.id, hive.beeForce ?? 0.002);
 		this.beeAttackStyleById.set(bee.id, hive.attackStyle);
+		this.beeNavigationIdByBodyId.set(bee.id, this.nextBeeNavigationId++);
 		this.bees.push(bee);
 	}
 
@@ -191,7 +197,7 @@ export class BeeSystem {
 	private refreshBeeDirection(bee: Matter.Body, dogBody: Matter.Body): void {
 		// A*와 blocker 탐지는 CPU 비용이 커서 fixed-step마다 돌리지 않고 짧은 AI tick마다 방향만 갱신한다.
 		const target = this.navigation.chooseTarget(
-			bee,
+			{ id: this.beeNavigationIdByBodyId.get(bee.id) ?? 0, position: bee.position },
 			dogBody.position,
 			this.bodyCache.navigationBodies,
 			this.routeClockMs,
@@ -244,10 +250,11 @@ export class BeeSystem {
 
 			if (outside) {
 				Matter.Composite.remove(this.world, bee);
-				this.navigation.clearCache(bee.id);
+				this.navigation.clearCache(this.beeNavigationIdByBodyId.get(bee.id));
 				this.beeDirectionById.delete(bee.id);
 				this.beeForceById.delete(bee.id);
 				this.beeAttackStyleById.delete(bee.id);
+				this.beeNavigationIdByBodyId.delete(bee.id);
 			} else {
 				active.push(bee);
 			}
@@ -256,10 +263,9 @@ export class BeeSystem {
 	}
 }
 
-function navigationBodyParts(body: Matter.Body): Matter.Body[] {
+export function navigationBodyParts(body: Matter.Body): Matter.Body[] {
 	if (!NAVIGATION_LABELS.has(body.label)) return [];
-	if (body.label !== 'drawing' || body.parts.length <= 1) return [body];
-	return body.parts.slice(1);
+	return body.parts.length > 1 ? body.parts.slice(1) : [body];
 }
 
 function hiveForce(direction: Point, beeForce: number, forceMultiplier: number): Matter.Vector {

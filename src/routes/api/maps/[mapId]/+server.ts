@@ -1,22 +1,46 @@
 import { error, type RequestHandler } from '@sveltejs/kit';
-import { ensureMongoIndexes, getMongoDatabase } from '$lib/server/mongodb.js';
+import type { StageMapDocument } from '$lib/game/stages/stage-map-schema.js';
 import { requireUuid, jsonResponse, rethrowApiError } from '$lib/server/api.js';
+import { ensurePostgresSchema, getPostgresPool, tableName } from '$lib/server/postgres.js';
 import { enforceRateLimit } from '$lib/server/request.js';
-import { mapCollection, toOnlineMapSummary } from '$lib/server/online-maps.js';
+
+interface PublishedMapRow {
+	id: string;
+	owner_nickname: string;
+	title: string;
+	document: StageMapDocument;
+	content_hash: string;
+	created_at: Date;
+	updated_at: Date;
+	download_count: number;
+}
 
 export const GET: RequestHandler = async (event) => {
 	try {
 		const mapId = requireUuid(event.params.mapId ?? null, '지도 ID');
-		const db = await getMongoDatabase();
-		await ensureMongoIndexes(db);
-		await enforceRateLimit(db, event, 'get-map', undefined, 60, 60 * 1000);
-		const maps = mapCollection(db);
-		const record = await maps.findOne({ _id: mapId });
-		if (!record) throw error(404, '온라인 지도를 찾을 수 없습니다.');
-		await maps.updateOne({ _id: mapId }, { $inc: { downloadCount: 1 } });
+		await ensurePostgresSchema();
+		await enforceRateLimit(event, 'get-map', undefined, 60, 60 * 1000);
+		const result = await getPostgresPool().query<PublishedMapRow>(
+			`SELECT id, owner_nickname, title, document, content_hash, created_at, updated_at, download_count
+			 FROM ${tableName('published_maps')}
+			 WHERE id = $1`,
+			[mapId]
+		);
+		const row = result.rows[0];
+		if (!row) throw error(404, '온라인 지도를 찾을 수 없습니다.');
 		return jsonResponse(
-			{ ...toOnlineMapSummary(record), document: record.document },
-			{ 'cache-control': 'public, max-age=30, s-maxage=30, stale-while-revalidate=120' }
+			{
+				mapId: row.id,
+				title: row.title,
+				authorNickname: row.owner_nickname,
+				contentHash: row.content_hash,
+				createdAt: row.created_at.toISOString(),
+				updatedAt: row.updated_at.toISOString(),
+				downloadCount: row.download_count,
+				objectCount: row.document.objects.length,
+				document: row.document
+			},
+			{ 'cache-control': 'no-store' }
 		);
 	} catch (cause) {
 		return rethrowApiError(cause, 'api/maps/[mapId] GET');

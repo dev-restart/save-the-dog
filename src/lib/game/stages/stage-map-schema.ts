@@ -7,6 +7,8 @@ import {
 	type StageDesignType,
 	type StageEnvironment
 } from '../types.js';
+import { OBSTACLE_TYPE_SET, getObstacleSpec, isObstacleType } from '../obstacle-registry.js';
+import { TERRAIN_PREFABS } from '../terrain/terrain-prefabs.js';
 
 export const STAGE_MAP_SCHEMA_VERSION = 1;
 const SHARE_PREFIX = `stdog-map-v${STAGE_MAP_SCHEMA_VERSION}.`;
@@ -36,29 +38,8 @@ const DIFFICULTY_PROFILES = new Set<DifficultyProfileId>([
 	'expert',
 	'master'
 ]);
-const OBSTACLE_TYPES = new Set<ObstacleType>([
-	'ground',
-	'platform',
-	'spike',
-	'wall',
-	'water',
-	'lava',
-	'brick',
-	'terrain-block',
-	'wood',
-	'bomb',
-	'boulder',
-	'crate',
-	'acid',
-	'ice',
-	'stone',
-	'rolling-boulder',
-	'no-draw-zone',
-	'no-draw-ground',
-	'no-draw-tree',
-	'no-draw-rock'
-]);
-const OBJECT_KINDS = new Set<StageMapObjectKind>(['dog', 'hive', ...OBSTACLE_TYPES]);
+const OBJECT_KINDS = new Set<StageMapObjectKind>(['dog', 'hive', ...OBSTACLE_TYPE_SET]);
+const TERRAIN_PREFAB_IDS = new Set(Object.keys(TERRAIN_PREFABS));
 
 export type StageMapObjectKind = 'dog' | 'hive' | ObstacleType;
 
@@ -74,6 +55,7 @@ export interface StageMapObject {
 	spawnIntervalMs?: number;
 	beeForce?: number;
 	attackStyle?: BeeAttackStyle;
+	prefabId?: import('../terrain/terrain-prefabs.js').TerrainPrefabId;
 }
 
 export interface StageMapDocument {
@@ -183,7 +165,8 @@ export function createStageMapDocument(stage: StageData): StageMapDocument {
 			y: obstacle.y,
 			width: obstacle.width,
 			height: obstacle.height,
-			angle: obstacle.angle
+			angle: obstacle.angle,
+			prefabId: obstacle.prefabId
 		}))
 	];
 
@@ -251,7 +234,8 @@ export function encodeStageMapQrShare(document: StageMapDocument): string {
 			object.beeCount,
 			object.spawnIntervalMs,
 			object.beeForce,
-			object.attackStyle
+			object.attackStyle,
+			object.prefabId
 		])
 	];
 
@@ -301,10 +285,11 @@ export function decodeSharedStageMap(value: string): StageMapDocument {
 				object.beeForce = entry[9] as number | undefined;
 				object.attackStyle = entry[10] as BeeAttackStyle | undefined;
 			}
-			if (OBSTACLE_TYPES.has(kind as ObstacleType)) {
+			if (isObstacleType(kind)) {
 				object.width = entry[4] as number | undefined;
 				object.height = entry[5] as number | undefined;
 				object.angle = entry[6] ?? undefined;
+				if (typeof entry[11] === 'string') object.prefabId = entry[11] as StageMapObject['prefabId'];
 			}
 			return object;
 		})
@@ -332,15 +317,19 @@ export function createStageDataFromMapDocument(document: StageMapDocument): Stag
 				attackStyle: object.attackStyle
 			})),
 		obstacles: document.objects
-			.filter((object): object is StageMapObject & { kind: ObstacleType } => OBSTACLE_TYPES.has(object.kind as ObstacleType))
-			.map((object) => ({
-				type: object.kind,
-				x: object.x,
-				y: object.y,
-				width: object.width ?? 48,
-				height: object.height ?? 32,
-				angle: object.angle
-			})),
+			.filter((object): object is StageMapObject & { kind: ObstacleType } => isObstacleType(object.kind))
+			.map((object) => {
+				const defaultSize = getObstacleSpec(object.kind).defaultSize;
+				return {
+					type: object.kind,
+					x: object.x,
+					y: object.y,
+					width: object.width ?? defaultSize.width,
+					height: object.height ?? defaultSize.height,
+					angle: object.angle,
+					prefabId: object.prefabId
+				};
+			}),
 		inkLimit: document.difficulty.inkLimit,
 		survivalMs: document.difficulty.survivalMs,
 		environment: document.environment,
@@ -382,10 +371,11 @@ export function validateStageMapDocument(document: StageMapDocument): string[] {
 			if (!positiveInteger(object.beeCount, 1, 30)) errors.push('벌 수는 1~30 범위에서 지정하세요.');
 			if (!positiveInteger(object.spawnIntervalMs, 120, 2000)) errors.push('벌 생성 간격은 120~2000ms 범위에서 지정하세요.');
 		}
-		if (OBSTACLE_TYPES.has(object.kind as ObstacleType)) {
-			if (!positiveNumber(object.width, 8, BASE_WORLD.width) || !positiveNumber(object.height, 8, BASE_WORLD.height)) {
-				errors.push(`${object.kind} 크기를 확인하세요.`);
+			if (isObstacleType(object.kind)) {
+				if (!positiveNumber(object.width, 8, BASE_WORLD.width) || !positiveNumber(object.height, 8, BASE_WORLD.height)) {
+					errors.push(`${object.kind} 크기를 확인하세요.`);
 			}
+			if (object.prefabId && !TERRAIN_PREFAB_IDS.has(object.prefabId)) errors.push('지원하지 않는 지형 prefab입니다.');
 		}
 	}
 	return [...new Set(errors)];

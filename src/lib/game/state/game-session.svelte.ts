@@ -9,7 +9,23 @@ import {
 	type GameSettings
 } from './game-persistence.js';
 import type { StageMapDocument } from '../stages/stage-map-schema.js';
-import { CHALLENGE_STAGE_MAX } from '../stages/challenge.js';
+import { CAMPAIGN_STAGE_COUNT } from '../stages/campaign.js';
+import type { PlayerProgress } from '../online/types.js';
+
+function clampCampaignStage(stageId: number): number {
+	return Math.min(CAMPAIGN_STAGE_COUNT, Math.max(1, Math.floor(Number(stageId) || 1)));
+}
+
+function campaignStageStars(stageStars: Record<string, number>): Record<string, number> {
+	return Object.fromEntries(
+		Object.entries(stageStars).flatMap(([stageId, rawStars]) => {
+			const numericStageId = Number(stageId);
+			if (!Number.isInteger(numericStageId) || numericStageId < 1 || numericStageId > CAMPAIGN_STAGE_COUNT) return [];
+			const stars = Number(rawStars);
+			return [[String(numericStageId), Number.isFinite(stars) ? Math.min(3, Math.max(0, stars)) : 0]];
+		})
+	);
+}
 
 export class GameSessionState {
 	currentStage = $state(1);
@@ -42,10 +58,10 @@ export class GameSessionState {
 	async load(): Promise<void> {
 		const snapshot = await this.persistence.load();
 		const progress = snapshot.progress;
-		this.highestStage = progress.highestStage;
-		this.lastPlayedStage = Math.min(CHALLENGE_STAGE_MAX, progress.lastPlayedStage);
-		this.totalClears = progress.totalClears;
-		this.stageStars = progress.stageStars;
+		this.highestStage = clampCampaignStage(progress.highestStage);
+		this.lastPlayedStage = Math.min(this.highestStage, clampCampaignStage(progress.lastPlayedStage));
+		this.totalClears = Math.min(CAMPAIGN_STAGE_COUNT, progress.totalClears);
+		this.stageStars = campaignStageStars(progress.stageStars);
 		this.currentStage = this.lastPlayedStage;
 
 		this.applySettings(snapshot.settings);
@@ -55,7 +71,7 @@ export class GameSessionState {
 	start(stageId = 1): void {
 		this.hasStarted = true;
 		this.isCustomStage = false;
-		this.currentStage = Math.max(1, stageId);
+		this.currentStage = clampCampaignStage(stageId);
 		this.lastPlayedStage = this.currentStage;
 		this.resetRuntime();
 		this.saveProgress();
@@ -78,7 +94,7 @@ export class GameSessionState {
 
 	nextStage(): void {
 		this.phase = 'transitioning';
-		this.currentStage = Math.min(CHALLENGE_STAGE_MAX, this.currentStage + 1);
+		this.currentStage = Math.min(CAMPAIGN_STAGE_COUNT, this.currentStage + 1);
 		this.lastPlayedStage = this.currentStage;
 		this.resetRuntime();
 		this.saveProgress();
@@ -138,13 +154,13 @@ export class GameSessionState {
 		this.phase = 'cleared';
 		this.currentScore = score;
 		if (!this.isCustomStage) {
-			this.totalClears += 1;
-			this.highestStage = Math.max(this.highestStage, this.currentStage + 1);
+			if (this.currentStageBestStars === 0) this.totalClears += 1;
+			this.highestStage = Math.min(CAMPAIGN_STAGE_COUNT, Math.max(this.highestStage, this.currentStage + 1));
 			this.stageStars = {
 				...this.stageStars,
 				[String(this.currentStage)]: Math.max(this.currentStageBestStars, score.stars)
 			};
-			this.lastPlayedStage = this.currentStage + 1;
+			this.lastPlayedStage = Math.min(CAMPAIGN_STAGE_COUNT, this.currentStage + 1);
 			this.saveProgress();
 		}
 		void this.persistence.recordStageResult({
@@ -177,6 +193,34 @@ export class GameSessionState {
 		return this.persistence.deleteCustomMap(id);
 	}
 
+	applyServerProgress(progress: PlayerProgress): void {
+		this.highestStage = clampCampaignStage(progress.highestStage);
+		this.lastPlayedStage = Math.min(this.highestStage, clampCampaignStage(progress.lastPlayedStage));
+		if (!this.hasStarted) this.currentStage = this.lastPlayedStage;
+		this.totalClears = Math.min(CAMPAIGN_STAGE_COUNT, Math.max(0, progress.totalClears));
+		this.stageStars = campaignStageStars(progress.stageStars);
+		this.saveProgress();
+	}
+
+	getProgressSnapshot(): PlayerProgress {
+		return {
+			highestStage: this.highestStage,
+			lastPlayedStage: this.lastPlayedStage,
+			totalClears: this.totalClears,
+			totalStars: this.totalStars,
+			stageStars: { ...this.stageStars },
+			version: 1
+		};
+	}
+
+	replaceCustomMapCache(records: CustomMapRecord[]): Promise<void> {
+		return this.persistence.replaceCustomMaps(records);
+	}
+
+	cacheCustomMap(record: CustomMapRecord): Promise<void> {
+		return this.persistence.cacheCustomMap(record);
+	}
+
 	private resetRuntime(): void {
 		this.phase = 'ready';
 		this.inkRatio = 1;
@@ -203,10 +247,10 @@ export class GameSessionState {
 
 	private saveProgress(): void {
 		const progress: StoredProgress = {
-			highestStage: Math.max(this.highestStage, this.currentStage),
-			lastPlayedStage: Math.max(1, this.lastPlayedStage),
-			totalClears: this.totalClears,
-			stageStars: this.stageStars,
+			highestStage: clampCampaignStage(Math.max(this.highestStage, this.currentStage)),
+			lastPlayedStage: clampCampaignStage(this.lastPlayedStage),
+			totalClears: Math.min(CAMPAIGN_STAGE_COUNT, this.totalClears),
+			stageStars: campaignStageStars(this.stageStars),
 			version: 1
 		};
 

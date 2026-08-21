@@ -31,7 +31,8 @@ describe('BeeCombat', () => {
 		const start = { x: drawing.position.x, y: drawing.position.y, angle: drawing.angle };
 
 		Matter.Composite.add(engine.world, [drawing, bee, dog]);
-		const attacked = combat.attackDrawings(bee, dog, [drawing], 1000);
+		combat.beginStep([drawing], 1000);
+		const attacked = combat.attackDrawings(bee, dog, [drawing]);
 
 		expect(attacked).toBe(false);
 		expect(drawing.position.x).toBeCloseTo(start.x);
@@ -49,7 +50,8 @@ describe('BeeCombat', () => {
 
 		Matter.Composite.add(engine.world, [drawing, bee, dog]);
 		const startY = drawing.position.y;
-		const attacked = combat.attackDrawings(bee, dog, [drawing], 16.67);
+		combat.beginStep([drawing], 16.67);
+		const attacked = combat.attackDrawings(bee, dog, [drawing]);
 
 		expect(attacked).toBe(true);
 		expect(profile.combatPushForce).toBeGreaterThan(0);
@@ -67,7 +69,8 @@ describe('BeeCombat', () => {
 		const combat = new BeeCombat(engine.world, profile);
 
 		Matter.Composite.add(engine.world, [drawing, bee, dog]);
-		const attacked = combat.attackDrawings(bee, dog, [drawing], 16.67);
+		combat.beginStep([drawing], 16.67);
+		const attacked = combat.attackDrawings(bee, dog, [drawing]);
 
 		expect(attacked).toBe(true);
 		expect(profile.combatPullForce).toBeGreaterThan(0);
@@ -84,7 +87,8 @@ describe('BeeCombat', () => {
 		const combat = new BeeCombat(engine.world, profile);
 
 		Matter.Composite.add(engine.world, [drawing, bee, dog]);
-		const attacked = combat.attackDrawings(bee, dog, [drawing], 16.67);
+		combat.beginStep([drawing], 16.67);
+		const attacked = combat.attackDrawings(bee, dog, [drawing]);
 
 		expect(attacked).toBe(true);
 		expect(profile.combatRotateTorque).toBeGreaterThan(0);
@@ -104,15 +108,17 @@ describe('BeeCombat', () => {
 		Matter.Composite.add(engine.world, [drawing, bee1, bee2, dog]);
 
 		// 첫 번째 벌이 공격을 시작한다.
-		combat.attackDrawings(bee1, dog, [drawing], 16.67);
+		combat.beginStep([drawing], 16.67);
+		combat.attackDrawings(bee1, dog, [drawing]);
 		const firstFocus = combat['attackFocusMap'].get(drawing.id);
 		expect(firstFocus).toBeDefined();
 		expect(firstFocus?.beeCount).toBe(1);
 
 		// 두 번째 벌이 같은 방어선을 공격하면 집단 공격에 합류한다.
-		combat.attackDrawings(bee2, dog, [drawing], 16.67);
+		combat.attackDrawings(bee2, dog, [drawing]);
 		const secondFocus = combat['attackFocusMap'].get(drawing.id);
 		expect(secondFocus?.beeCount).toBe(2);
+		expect(combat['clockMs']).toBeCloseTo(16.67);
 	});
 
 	it('경로가 막히지 않으면 방어선을 공격하지 않는다', () => {
@@ -126,7 +132,8 @@ describe('BeeCombat', () => {
 		// 경로 차단 판정 함수를 설정하지 않으면 보수적으로 차단된 것으로 간주한다.
 		// 따라서 이 테스트는 setContext 없이 호출한다.
 		Matter.Composite.add(engine.world, [drawing, bee, dog]);
-		const attacked = combat.attackDrawings(bee, dog, [drawing], 16.67);
+		combat.beginStep([drawing], 16.67);
+		const attacked = combat.attackDrawings(bee, dog, [drawing]);
 
 		// setContext 없이 호출하면 isPathBlocked가 true를 반환하므로 공격한다.
 		// 이는 의도된 동작이다 (보수적 접근).
@@ -144,7 +151,8 @@ describe('BeeCombat', () => {
 		Matter.Composite.add(engine.world, [drawing, bee, dog]);
 
 		// 첫 공격으로 집단 공격 등록
-		combat.attackDrawings(bee, dog, [drawing], 16.67);
+		combat.beginStep([drawing], 16.67);
+		combat.attackDrawings(bee, dog, [drawing]);
 		const firstFocus = combat['attackFocusMap'].get(drawing.id);
 		expect(firstFocus).toBeDefined();
 		const firstTime = firstFocus?.registeredAtMs ?? 0;
@@ -153,7 +161,8 @@ describe('BeeCombat', () => {
 		Matter.Body.setPosition(drawing, { x: drawing.position.x + 5, y: drawing.position.y });
 
 		// 시간을 진행시키고 다시 공격
-		combat.attackDrawings(bee, dog, [drawing], 16.67);
+		combat.beginStep([drawing], 16.67);
+		combat.attackDrawings(bee, dog, [drawing]);
 		const secondFocus = combat['attackFocusMap'].get(drawing.id);
 		expect(secondFocus?.registeredAtMs).toBeGreaterThan(firstTime);
 	});
@@ -167,7 +176,8 @@ describe('BeeCombat', () => {
 		const combat = new BeeCombat(engine.world, profile);
 
 		Matter.Composite.add(engine.world, [drawing, bee, dog]);
-		combat.attackDrawings(bee, dog, [drawing], 16.67);
+		combat.beginStep([drawing], 16.67);
+		combat.attackDrawings(bee, dog, [drawing]);
 		expect(combat['attackFocusMap'].size).toBeGreaterThan(0);
 
 		combat.clear();

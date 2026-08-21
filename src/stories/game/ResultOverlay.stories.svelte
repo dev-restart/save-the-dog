@@ -9,7 +9,7 @@
 		tags: ['autodocs'],
 		args: {
 			stage: 5,
-			score: { stars: 2.5, inkStars: 1, timeStars: 1.5, inkRatio: 0.55, timeRatio: 1 },
+			score: { stars: 2, inkStars: 2, timeStars: 0, inkRatio: 0.55, timeRatio: 1 },
 			onNext: fn(),
 			onRetry: fn(),
 			onMenu: fn()

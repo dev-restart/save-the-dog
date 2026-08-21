@@ -16,7 +16,6 @@
   import { Button } from "$lib/components/ui/button/index.js";
   import { SKINS } from "$lib/game/skins.js";
   import { CAMPAIGN_CHAPTERS, CAMPAIGN_STAGE_COUNT } from "$lib/game/stages/campaign.js";
-  import { CHALLENGE_STAGE_MAX } from "$lib/game/stages/challenge.js";
   import { getStage } from "$lib/game/stages/index.js";
   import type { SkinId, StageData } from "$lib/game/types.js";
   import StageThumbnail from "./StageThumbnail.svelte";
@@ -76,25 +75,37 @@
   let introTitleSrc = $derived(selectedSkin.menu.introTitle);
   let showStageMap = $state(false);
   let showSettings = $state(false);
-  let continueStage = $derived(Math.min(CHALLENGE_STAGE_MAX, Math.max(1, highestStage)));
+  let continueStage = $derived(Math.min(CAMPAIGN_STAGE_COUNT, Math.max(1, highestStage)));
+  let campaignComplete = $derived(
+    continueStage === CAMPAIGN_STAGE_COUNT && (stageStars[String(CAMPAIGN_STAGE_COUNT)] ?? 0) > 0,
+  );
   let stageMapLimit = CAMPAIGN_STAGE_COUNT;
   let stageMapItems = $derived(
     Array.from({ length: stageMapLimit }, (_, index) => index + 1),
   );
   let selectedChapterId = $state(1);
+  let selectedStageId = $state(1);
   let stageChapters = $derived(
-    CAMPAIGN_CHAPTERS.map((chapter) => ({
-      ...chapter,
-      description: chapter.mechanic,
-      stageIds: stageMapItems.slice(chapter.startStage - 1, chapter.endStage),
-    })),
+    CAMPAIGN_CHAPTERS
+      .filter((chapter) => chapter.startStage <= continueStage)
+      .map((chapter) => ({
+        ...chapter,
+        description: chapter.mechanic,
+        stageIds: stageMapItems.slice(chapter.startStage - 1, chapter.endStage),
+      })),
   );
   let activeChapter = $derived(
     stageChapters.find((chapter) => chapter.id === selectedChapterId) ?? stageChapters[0],
   );
+  let selectedStage = $derived(getStage(Math.min(continueStage, Math.max(1, selectedStageId))));
+  let selectedStageCleared = $derived((stageStars[String(selectedStage.id)] ?? 0) > 0);
+
+  function isStageRevealed(stageId: number): boolean {
+    return stageId === continueStage || (stageStars[String(stageId)] ?? 0) > 0;
+  }
 
   function selectStage(stage: number): void {
-    if (stage > highestStage) return;
+    if (!isStageRevealed(stage)) return;
     onStageSelect(stage);
   }
 
@@ -104,10 +115,14 @@
 
   function selectChapter(chapterId: number): void {
     selectedChapterId = chapterId;
+    const chapter = stageChapters.find((item) => item.id === chapterId);
+    const revealedStages = chapter?.stageIds.filter(isStageRevealed) ?? [];
+    if (revealedStages.length > 0) selectedStageId = revealedStages[revealedStages.length - 1];
   }
 
   function openStageMap(): void {
     selectedChapterId = Math.min(10, Math.max(1, Math.ceil(continueStage / 10)));
+    selectedStageId = continueStage;
     showStageMap = true;
   }
 
@@ -144,7 +159,7 @@
         onclick={openStageMap}
       >
         <Trophy class="size-3.5 text-amber-500" />
-        <span>{continueStage}단계</span>
+        <span>{campaignComplete ? '100단계 완료' : `${continueStage}단계`}</span>
       </button>
       <div class="hud-chip">
         <CheckCircle2 class="size-3.5" />
@@ -212,7 +227,7 @@
         onclick={onContinue}
       >
         <Play class="size-5" />
-        {continueStage}단계 계속하기
+        {campaignComplete ? '100단계 다시 플레이' : `${continueStage}단계 계속하기`}
       </Button>
     {/if}
     <Button
@@ -265,7 +280,7 @@
         </div>
         <div class="settings-map-section" aria-label="온라인 커뮤니티">
           <div class="settings-title">온라인 커뮤니티</div>
-          <div class="settings-description">닉네임으로 공유 지도와 플레이어 랭킹을 확인합니다.</div>
+          <div class="settings-description">{nickname ?? '플레이어'} 계정의 랭킹과 공유 지도를 확인합니다.</div>
           <div class="settings-map-actions">
             <Button variant="secondary" class="settings-map-button h-10 text-xs font-black" onclick={onLeaderboard} disabled={!onLeaderboard}>
               <Trophy class="size-4" /> 플레이어 랭킹
@@ -338,7 +353,7 @@
               스테이지 선택
             </div>
             <p class="mt-1 text-[11px] font-semibold text-slate-600">
-              열린 단계만 선택할 수 있습니다. · 진행 {Math.min(CAMPAIGN_STAGE_COUNT, highestStage)} / {CAMPAIGN_STAGE_COUNT}
+              {campaignComplete ? '캠페인 완료' : `현재 ${continueStage}단계`} · 별 {totalStars.toFixed(1)}개
             </p>
           </div>
           <Button
@@ -374,33 +389,55 @@
                 </div>
                 <small>{activeChapter.mechanic}</small>
               </div>
-              <div class="stage-grid">
+              <div class="stage-route" aria-label={`${activeChapter.title} 진행 경로`}>
                 {#each activeChapter.stageIds as stageId (stageId)}
-                  {@const unlocked = stageId <= highestStage}
+                  {@const revealed = isStageRevealed(stageId)}
                   {@const stars = stageStars[String(stageId)] ?? 0}
-                  {@const stageData = getStage(stageId)}
-                  <button
-                    type="button"
-                    class="stage-node"
-                    class:stage-node-current={stageId === continueStage}
-                    class:stage-node-cleared={stars > 0 || stageId < highestStage}
-                    class:stage-node-locked={!unlocked}
-                    disabled={!unlocked}
-                    aria-label={unlocked
-                      ? `${stageId}단계, ${stageData.objectiveLabel ?? "강아지 보호"}, ${stageChallenge(stageData)}${stageId === continueStage ? ", 현재 단계" : ""}`
-                      : `${stageId}단계 잠김`}
-                    onclick={() => selectStage(stageId)}
-                  >
-                    <StageThumbnail stage={stageData} {skin} />
-                    <span class="stage-node-row">
-                      <span class="stage-number">{stageId}단계 {stageId === continueStage ? "· 현재" : ""}</span>
-                      {#if unlocked}<span class="stage-stars">★ {stars.toFixed(1)}</span>{:else}<span class="stage-locked-label">잠김</span><Lock class="size-3.5" />{/if}
-                    </span>
-                    <span class="stage-objective">{stageData.objectiveLabel ?? "강아지 보호"}</span>
-                    <span class="stage-challenge">{stageChallenge(stageData)}</span>
-                  </button>
+                  {@const currentChallenge = stageId === continueStage && !campaignComplete}
+                  <div class="route-stop" class:route-stop-right={stageId % 2 === 0}>
+                    <span class="route-line" aria-hidden="true"></span>
+                    {#if revealed}
+                      <button
+                        type="button"
+                        class="route-node"
+                        class:route-node-current={currentChallenge}
+                        class:route-node-cleared={stars > 0}
+                        class:route-node-selected={stageId === selectedStageId}
+                        aria-label={`${stageId}단계${currentChallenge ? ", 현재 도전 단계" : ", 완료한 단계"}`}
+                        onclick={() => (selectedStageId = stageId)}
+                      >
+                        <strong>{stageId}</strong>
+                        <span>{currentChallenge ? '도전' : `★ ${stars.toFixed(1)}`}</span>
+                      </button>
+                    {:else}
+                      <span class="route-node route-node-hidden" aria-label="아직 공개되지 않은 단계">
+                        <Lock class="size-3.5" />
+                        <strong>?</strong>
+                      </span>
+                    {/if}
+                  </div>
                 {/each}
               </div>
+              <section class="stage-preview-card" aria-label={`${selectedStage.id}단계 선택`}>
+                {#if selectedStageCleared}
+                  <div class="stage-preview-visual"><StageThumbnail stage={selectedStage} {skin} /></div>
+                  <div class="stage-preview-copy">
+                    <span>완료한 단계</span>
+                    <strong>{selectedStage.id}단계 · {selectedStage.objectiveLabel ?? '강아지 보호'}</strong>
+                    <p>{selectedStage.objectiveHint ?? '선을 그어 강아지를 안전하게 보호하세요.'}</p>
+                    <small>{stageChallenge(selectedStage)}</small>
+                  </div>
+                {:else}
+                  <div class="stage-preview-copy stage-preview-unrevealed">
+                    <span>현재 도전</span>
+                    <strong>{selectedStage.id}단계</strong>
+                    <p>스테이지를 시작하면 지형과 공략 요소가 공개됩니다.</p>
+                  </div>
+                {/if}
+                <Button class="h-11 w-full font-black" onclick={() => selectStage(selectedStage.id)}>
+                  <Play class="size-4" /> {selectedStageCleared ? '다시 플레이' : '도전 시작'}
+                </Button>
+              </section>
             </section>
           {/if}
         </div>
@@ -655,18 +692,12 @@
     backdrop-filter: blur(14px);
   }
 
-  .stage-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem;
-  }
-
   .stage-chapters { display: grid; gap: 0.8rem; }
-  .stage-chapter { display: grid; gap: 0.4rem; }
+  .stage-chapter { display: grid; gap: 0.75rem; }
   .chapter-tabs { display: flex; gap: 0.35rem; overflow-x: auto; padding: 0.1rem 0.05rem 0.35rem; scrollbar-width: thin; }
-  .chapter-tabs button { display: grid; min-width: 72px; gap: 0.12rem; border: 1px solid rgba(30, 64, 96, 0.14); border-radius: 10px; background: rgba(239, 247, 255, 0.78); padding: 0.38rem 0.45rem; color: #55708c; text-align: left; }
+  .chapter-tabs button { display: grid; min-width: 96px; min-height: 58px; gap: 0.16rem; border: 1px solid rgba(30, 64, 96, 0.14); border-radius: 12px; background: rgba(239, 247, 255, 0.9); padding: 0.5rem 0.58rem; color: #47647e; text-align: left; }
   .chapter-tabs button span { font-size: 0.5rem; font-weight: 950; letter-spacing: 0.08em; }
-  .chapter-tabs button strong { overflow: hidden; font-size: 0.6rem; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+  .chapter-tabs button strong { font-size: 0.65rem; font-weight: 900; line-height: 1.25; white-space: normal; }
   .chapter-tabs button.chapter-tab-active { border-color: #f3b644; background: #fff4c9; color: #6d4511; box-shadow: 0 3px 8px rgba(173, 116, 21, 0.14); }
   .stage-chapter-heading { display: flex; align-items: end; justify-content: space-between; gap: 0.5rem; color: #42536a; }
   .stage-chapter-heading > div { display: grid; gap: 0.1rem; min-width: 0; }
@@ -674,55 +705,33 @@
   .stage-chapter-heading span, .stage-chapter-heading small { overflow: hidden; color: #64748b; font-size: 0.6rem; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
   .stage-chapter-heading small { max-width: 46%; text-align: right; }
 
-  .stage-node {
-    display: grid;
-    min-height: 132px;
-    gap: 0.28rem;
-    border: 1px solid rgba(15, 23, 42, 0.1);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.8);
-    color: #1e293b;
-    font-weight: 900;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
-  }
-
-  .stage-node-cleared {
-    border-color: rgba(245, 158, 11, 0.38);
-    background: #fff7d6;
-  }
-
-  .stage-node-current {
-    border-color: rgba(21, 21, 21, 0.4);
-    background: var(--action-bg);
-    color: var(--action-text);
-    box-shadow: 0 8px 16px var(--shadow);
-  }
-
-  .stage-node-locked {
-    cursor: not-allowed;
-    background: rgba(226, 232, 240, 0.72);
-    color: #94a3b8;
-  }
-
-  .stage-number {
-    font-size: 0.72rem;
-    line-height: 1;
-  }
-
-  .stage-stars {
-    font-size: 0.6rem;
-    line-height: 1;
-    opacity: 0.82;
-  }
-
-  .stage-locked-label { font-size: 0.55rem; font-weight: 900; }
-
-  .stage-node-row { display: flex; align-items: center; justify-content: space-between; gap: 0.2rem; padding: 0 0.45rem; }
-  .stage-objective { overflow: hidden; padding: 0 0.45rem; color: #334155; font-size: 0.58rem; font-weight: 900; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
-  .stage-challenge { overflow: hidden; padding: 0 0.45rem 0.38rem; color: #64748b; font-size: 0.53rem; font-weight: 850; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
-  .stage-node-current .stage-challenge { color: rgba(255,255,255,.74); }
-  .stage-node-current .stage-objective { color: rgba(255,255,255,.9); }
-  .stage-node-locked .stage-objective, .stage-node-locked .stage-challenge { color: #94a3b8; }
+  .stage-route { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem 2.4rem; border-radius: 18px; background: linear-gradient(180deg, rgba(222,242,222,.76), rgba(238,247,230,.9)); padding: 1rem 1.2rem; overflow: hidden; }
+  .stage-route::before { position: absolute; top: 1.2rem; bottom: 1.2rem; left: 50%; width: 3px; border-radius: 999px; background: repeating-linear-gradient(180deg, rgba(91,129,75,.45) 0 8px, transparent 8px 15px); content: ''; transform: translateX(-50%); }
+  .route-stop { position: relative; z-index: 1; display: flex; min-height: 62px; align-items: center; justify-content: flex-end; }
+  .route-stop-right { grid-column: 2; justify-content: flex-start; }
+  .route-stop:nth-child(odd) { grid-column: 1; }
+  .route-stop:nth-child(even) { grid-column: 2; }
+  .route-line { position: absolute; right: -1.2rem; width: 1.2rem; height: 2px; background: rgba(91,129,75,.4); }
+  .route-stop-right .route-line { right: auto; left: -1.2rem; }
+  .route-node { display: grid; width: 64px; height: 64px; place-items: center; align-content: center; gap: 0.12rem; border: 3px solid #fff; border-radius: 22px; background: #f7fbf5; color: #31503a; box-shadow: 0 5px 12px rgba(42,74,46,.18); font-weight: 950; transition: transform 120ms ease, box-shadow 120ms ease; }
+  button.route-node { cursor: pointer; }
+  button.route-node:active { transform: scale(.96); }
+  .route-node strong { font-size: 1.05rem; line-height: 1; }
+  .route-node span { color: #68816c; font-size: .55rem; font-weight: 900; }
+  .route-node-cleared { background: #fff5c7; color: #704b14; }
+  .route-node-current { background: #172319; color: #fff; box-shadow: 0 7px 18px rgba(20,38,24,.3); }
+  .route-node-current span { color: #d9f5dc; }
+  .route-node-selected { outline: 3px solid #f0b743; outline-offset: 3px; }
+  .route-node-hidden { border-color: rgba(255,255,255,.72); background: rgba(151,167,150,.38); color: #607064; box-shadow: none; }
+  .route-node-hidden strong { font-size: .95rem; }
+  .stage-preview-card { display: grid; gap: .7rem; border: 1px solid rgba(50,84,61,.16); border-radius: 18px; background: #fff; padding: .75rem; box-shadow: 0 8px 22px rgba(34,64,42,.1); }
+  .stage-preview-visual { overflow: hidden; border-radius: 13px; }
+  .stage-preview-copy { display: grid; gap: .18rem; color: #21352a; }
+  .stage-preview-copy > span { color: #718476; font-size: .58rem; font-weight: 950; letter-spacing: .04em; }
+  .stage-preview-copy strong { font-size: .88rem; font-weight: 950; }
+  .stage-preview-copy p { margin: 0; color: #566a5b; font-size: .68rem; font-weight: 700; line-height: 1.45; }
+  .stage-preview-copy small { color: #9b681a; font-size: .6rem; font-weight: 900; }
+  .stage-preview-unrevealed { min-height: 82px; align-content: center; border-radius: 13px; background: linear-gradient(145deg, #eef4f0, #f8faf8); padding: .9rem; }
 
   .title-zone {
     margin-top: clamp(1.2rem, 4vh, 3rem);

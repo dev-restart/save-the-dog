@@ -8,6 +8,8 @@ export interface NoDrawZone {
 	width: number;
 	height: number;
 	angle?: number;
+	/** prefab/polygon 지형의 실제 보이는 면과 같은 Drawing 금지 경계 */
+	vertices?: Point[];
 }
 
 const MIN_POINT_DISTANCE = 5;
@@ -80,6 +82,7 @@ export class DrawingSystem {
 
 	private isSegmentInNoDrawZone(start: Point, end: Point): boolean {
 		return this.noDrawZones.some((zone) => {
+			if (zone.vertices && zone.vertices.length >= 3) return segmentIntersectsPolygon(start, end, zone.vertices);
 			const angle = zone.angle ?? 0;
 			const startLocal = rotateAround(start, { x: zone.x, y: zone.y }, -angle);
 			const endLocal = rotateAround(end, { x: zone.x, y: zone.y }, -angle);
@@ -115,6 +118,50 @@ export class DrawingSystem {
 	getInkRatio(): number {
 		return clamp((this.inkLimit - this.inkUsed) / this.inkLimit, 0, 1);
 	}
+}
+
+function segmentIntersectsPolygon(start: Point, end: Point, vertices: Point[]): boolean {
+	if (pointInPolygon(start, vertices) || pointInPolygon(end, vertices)) return true;
+	return vertices.some((from, index) => segmentsIntersect(start, end, from, vertices[(index + 1) % vertices.length]));
+}
+
+function pointInPolygon(point: Point, vertices: Point[]): boolean {
+	let inside = false;
+	for (let index = 0, previous = vertices.length - 1; index < vertices.length; previous = index, index += 1) {
+		const a = vertices[index];
+		const b = vertices[previous];
+		if ((a.y > point.y) !== (b.y > point.y) && point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+	}
+	return inside;
+}
+
+function segmentsIntersect(a: Point, b: Point, c: Point, d: Point): boolean {
+	const first = orientation(a, b, c);
+	const second = orientation(a, b, d);
+	const third = orientation(c, d, a);
+	const fourth = orientation(c, d, b);
+
+	if (first !== second && third !== fourth) return true;
+	if (first === 0 && onSegment(a, c, b)) return true;
+	if (second === 0 && onSegment(a, d, b)) return true;
+	if (third === 0 && onSegment(c, a, d)) return true;
+	if (fourth === 0 && onSegment(c, b, d)) return true;
+	return false;
+}
+
+function orientation(a: Point, b: Point, c: Point): -1 | 0 | 1 {
+	const value = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+	if (Math.abs(value) < 0.0001) return 0;
+	return value > 0 ? 1 : -1;
+}
+
+function onSegment(start: Point, point: Point, end: Point): boolean {
+	return (
+		point.x >= Math.min(start.x, end.x) - 0.0001 &&
+		point.x <= Math.max(start.x, end.x) + 0.0001 &&
+		point.y >= Math.min(start.y, end.y) - 0.0001 &&
+		point.y <= Math.max(start.y, end.y) + 0.0001
+	);
 }
 
 function rotateAround(point: Point, center: Point, angle: number): Point {

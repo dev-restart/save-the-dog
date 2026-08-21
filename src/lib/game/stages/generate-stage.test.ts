@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getStage } from './index.js';
 import { generateStage } from './generate-stage.js';
 import { CAMPAIGN_CHAPTERS, CAMPAIGN_STAGE_COUNT, getCampaignChapter } from './campaign.js';
+import { auditPuzzleDesign } from './puzzle-design.js';
 
 describe('generateStage', () => {
 	it('21단계 이후에도 같은 단계는 같은 지형 퍼즐로 생성한다', () => {
@@ -73,7 +74,8 @@ describe('generateStage', () => {
 			expect(stage.objectiveLabel, `stage ${stageId} objective`).toBeTruthy();
 			expect(stage.objectiveHint, `stage ${stageId} hint`).toBeTruthy();
 			expect(stage.dangerLabel, `stage ${stageId} danger`).toBeTruthy();
-			expect(stage.survivalMs, `stage ${stageId} survival`).toBe(10000);
+			expect(stage.survivalMs, `stage ${stageId} survival`).toBeGreaterThanOrEqual(stageId <= 20 ? 3000 : 10000);
+			expect(stage.survivalMs, `stage ${stageId} survival`).toBeLessThanOrEqual(10000);
 			for (const obstacle of stage.obstacles) {
 				expect(obstacle.x - obstacle.width / 2, `stage ${stageId} obstacle left`).toBeGreaterThanOrEqual(-20);
 				expect(obstacle.x + obstacle.width / 2, `stage ${stageId} obstacle right`).toBeLessThanOrEqual(410);
@@ -86,12 +88,42 @@ describe('generateStage', () => {
 });
 
 describe('static stage puzzle maps', () => {
+	it('1~3단계는 ㄷ자, 괄호, 동굴 입구 패턴을 차례로 학습한다', () => {
+		const stage1 = getStage(1);
+		const stage2 = getStage(2);
+		const stage3 = getStage(3);
+
+		expect(stage1.objectiveLabel).toContain('ㄷ자');
+		expect(stage1.obstacles.some((obstacle) => obstacle.prefabId === 'u-shelter')).toBe(true);
+		expect(stage2.objectiveHint).toContain('꺾어');
+		expect(stage2.obstacles.some((obstacle) => obstacle.prefabId === 'stepped-basin')).toBe(true);
+		expect(stage3.objectiveHint).toContain('동굴');
+		expect(stage3.obstacles.some((obstacle) => obstacle.prefabId === 'cliff-pocket-left')).toBe(true);
+	});
+
+	it('5단계부터 폭탄과 굴림돌을 순차적으로 지형 경로와 결합한다', () => {
+		expect(getStage(5).obstacles.some((obstacle) => obstacle.type === 'bomb')).toBe(true);
+		expect(getStage(6).obstacles.some((obstacle) => obstacle.type === 'rolling-boulder')).toBe(true);
+		expect(getStage(8).obstacles.some((obstacle) => obstacle.type === 'rolling-boulder')).toBe(true);
+		expect(getStage(9).obstacles.some((obstacle) => obstacle.type === 'bomb')).toBe(true);
+		const stage10Types = new Set(getStage(10).obstacles.map((obstacle) => obstacle.type));
+		expect(stage10Types.has('rolling-boulder')).toBe(true);
+		expect(stage10Types.has('bomb')).toBe(false);
+		expect(getStage(11).obstacles.some((obstacle) => obstacle.type === 'bomb')).toBe(true);
+		expect(getStage(13).obstacles.some((obstacle) => obstacle.type === 'rolling-boulder')).toBe(true);
+		expect(getStage(16).obstacles.some((obstacle) => obstacle.type === 'bomb')).toBe(true);
+		expect(getStage(18).obstacles.some((obstacle) => obstacle.type === 'rolling-boulder')).toBe(true);
+		const stage20Types = new Set(getStage(20).obstacles.map((obstacle) => obstacle.type));
+		expect(stage20Types.has('bomb')).toBe(true);
+		expect(stage20Types.has('rolling-boulder')).toBe(true);
+	});
+
 	it('1~20단계는 단계별 지형 퍼즐 오브젝트를 명시적으로 가진다', () => {
 		for (let stageId = 2; stageId <= 20; stageId += 1) {
 			const stage = getStage(stageId);
 			expect(stage.designType, `stage ${stageId} design type`).toBeTruthy();
 			expect(
-				stage.obstacles.some((obstacle) => ['brick', 'wood', 'water', 'lava'].includes(obstacle.type)),
+				stage.obstacles.some((obstacle) => ['terrain-block', 'brick', 'wood', 'water', 'lava'].includes(obstacle.type)),
 				`stage ${stageId} needs terrain`
 			).toBe(true);
 		}
@@ -101,10 +133,11 @@ describe('static stage puzzle maps', () => {
 		const stage = getStage(3);
 		const hasNearSupport = stage.obstacles.some(
 			(obstacle) =>
+				!obstacle.prefabId &&
 				!['ground', 'water', 'lava', 'spike'].includes(obstacle.type) &&
 				Math.abs(obstacle.x - stage.dog.x) < obstacle.width / 2 + 20 &&
 				obstacle.y > stage.dog.y &&
-				obstacle.y < 610
+				obstacle.y - stage.dog.y < 120
 		);
 
 		expect(stage.objectiveLabel).toBe('떨어지기 전 받침');
@@ -131,9 +164,10 @@ describe('static stage puzzle maps', () => {
 		expect(stage.environment).toBe('volcanic');
 	});
 
-	it('실제 게임과 같은 10초 방어 시간을 모든 고정 단계에 적용한다', () => {
+	it('초반 고정 단계는 짧게 시작해 7초 이내로 완만하게 늘어난다', () => {
 		for (let stageId = 1; stageId <= 20; stageId += 1) {
-			expect(getStage(stageId).survivalMs, `stage ${stageId} survival time`).toBe(10000);
+			expect(getStage(stageId).survivalMs, `stage ${stageId} survival time`).toBeGreaterThanOrEqual(3000);
+			expect(getStage(stageId).survivalMs, `stage ${stageId} survival time`).toBeLessThanOrEqual(7000);
 		}
 	});
 
@@ -153,6 +187,62 @@ describe('static stage puzzle maps', () => {
 		}
 		expect(getStage(21).environment).toBe('forest');
 		expect(getStage(30).hives).toHaveLength(3);
+	});
+
+	it('1~4단계는 기본 보호를 익히고 5~10단계에서 동적 위험이 증가한다', () => {
+		for (let stageId = 1; stageId <= 4; stageId += 1) {
+			const movingHazards = getStage(stageId).obstacles.filter((obstacle) => ['bomb', 'boulder', 'rolling-boulder'].includes(obstacle.type));
+			expect(movingHazards, `stage ${stageId} moving hazards`).toEqual([]);
+		}
+
+		const expectedHazards: Record<number, string[]> = {
+			5: ['bomb'],
+			6: ['rolling-boulder'],
+			7: [],
+			8: ['rolling-boulder'],
+			9: ['bomb'],
+			10: ['rolling-boulder']
+		};
+		for (const [stageId, expected] of Object.entries(expectedHazards)) {
+			const actual = getStage(Number(stageId)).obstacles
+				.filter((obstacle) => obstacle.type === 'bomb' || obstacle.type === 'rolling-boulder')
+				.map((obstacle) => obstacle.type)
+				.sort();
+			expect(actual, `stage ${stageId} hazards`).toEqual([...expected].sort());
+		}
+
+		const beeCounts = Array.from({ length: 10 }, (_, index) => getStage(index + 1).hives.reduce((sum, hive) => sum + hive.beeCount, 0));
+		for (let index = 1; index < beeCounts.length; index += 1) {
+			expect(beeCounts[index], `stage ${index + 1} bee count`).toBeGreaterThanOrEqual(beeCounts[index - 1]);
+		}
+	});
+
+	it('1~10단계는 큰 실루엣과 Drawing anchor가 있는 퀴즈 계약을 만족한다', () => {
+		for (let stageId = 1; stageId <= 10; stageId += 1) {
+			const audit = auditPuzzleDesign(getStage(stageId));
+			expect(audit.severity, `stage ${stageId}: ${JSON.stringify(audit)}`).not.toBe('error');
+			expect(audit.metrics.silhouetteSpanRatio, `stage ${stageId} terrain span`).toBeGreaterThanOrEqual(0.45);
+			expect(audit.metrics.silhouetteHeightBands, `stage ${stageId} height bands`).toBeGreaterThanOrEqual(2);
+		}
+	});
+
+	it.each([6, 8, 10])('%i단계 굴림돌은 경사 위에서 시작한다', (stageId) => {
+		const stage = getStage(stageId);
+		const boulder = stage.obstacles.find((obstacle) => obstacle.type === 'rolling-boulder');
+		const slopes = stage.obstacles.filter((obstacle) => obstacle.type === 'wood' && Math.abs(obstacle.angle ?? 0) > 0.05);
+
+		expect(boulder).toBeTruthy();
+		expect(boulder!.y).toBeLessThan(Math.min(...slopes.map((slope) => slope.y)));
+		expect(slopes.some((slope) => boulder!.x + boulder!.width / 2 >= slope.x - slope.width / 2 && boulder!.x - boulder!.width / 2 <= slope.x + slope.width / 2)).toBe(true);
+	});
+
+	it('10단계는 의미 없는 폭탄 없이 중앙 굴림돌만 공략 요소로 사용한다', () => {
+		const stage = getStage(10);
+		const bomb = stage.obstacles.find((obstacle) => obstacle.type === 'bomb');
+		const boulder = stage.obstacles.find((obstacle) => obstacle.type === 'rolling-boulder');
+		expect(bomb).toBeUndefined();
+		expect(boulder).toBeTruthy();
+		expect(stage.dangerLabel).toContain('중앙 굴림돌');
 	});
 
 	it('24단계는 강아지보다 높은 왼쪽 경사에서 굴림돌이 안전실 방향으로 내려온다', () => {

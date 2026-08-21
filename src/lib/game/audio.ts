@@ -27,9 +27,11 @@ export class GameAudioManager {
 	private unlocked = false;
 	private beeBuzzing = false;
 	private lastBarrierTapAt = 0;
+	private pageVisible = true;
 
 	constructor(preferences: AudioPreferences = DEFAULT_AUDIO_PREFERENCES) {
 		this.setPreferences(preferences);
+		this.attachLifecycleListeners();
 	}
 
 	setPreferences(preferences: AudioPreferences): void {
@@ -90,6 +92,7 @@ export class GameAudioManager {
 	}
 
 	destroy(): void {
+		this.detachLifecycleListeners();
 		this.bgm?.pause();
 		this.beeBuzz?.pause();
 		this.bgm = null;
@@ -106,7 +109,7 @@ export class GameAudioManager {
 			this.beeBuzz.preload = 'auto';
 		}
 
-		if (this.sfxEnabled && this.unlocked && this.beeBuzzing) {
+		if (this.pageVisible && this.sfxEnabled && this.unlocked && this.beeBuzzing) {
 			void this.beeBuzz.play().catch(() => undefined);
 			return;
 		}
@@ -116,7 +119,7 @@ export class GameAudioManager {
 	}
 
 	private playSfx(src: string, volume: number, cooldownMs: number): void {
-		if (!browser || !this.sfxEnabled || !this.unlocked) return;
+		if (!browser || !this.pageVisible || !this.sfxEnabled || !this.unlocked) return;
 		const now = performance.now();
 		if (now - this.lastBarrierTapAt < cooldownMs) return;
 		this.lastBarrierTapAt = now;
@@ -124,5 +127,49 @@ export class GameAudioManager {
 		const audio = new Audio(src);
 		audio.volume = volume;
 		void audio.play().catch(() => undefined);
+	}
+
+	private attachLifecycleListeners(): void {
+		if (!browser || typeof document === 'undefined' || typeof window === 'undefined') return;
+		this.pageVisible = !document.hidden;
+		document.addEventListener('visibilitychange', this.handleVisibilityChange);
+		window.addEventListener('pagehide', this.handlePageHide);
+		window.addEventListener('pageshow', this.handlePageShow);
+	}
+
+	private detachLifecycleListeners(): void {
+		if (!browser || typeof document === 'undefined' || typeof window === 'undefined') return;
+		document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+		window.removeEventListener('pagehide', this.handlePageHide);
+		window.removeEventListener('pageshow', this.handlePageShow);
+	}
+
+	private handleVisibilityChange = (): void => {
+		this.pageVisible = !document.hidden;
+		if (!this.pageVisible) {
+			this.pauseAll();
+			return;
+		}
+		this.resumeAll();
+	};
+
+	private handlePageHide = (): void => {
+		this.pageVisible = false;
+		this.pauseAll();
+	};
+
+	private handlePageShow = (): void => {
+		this.pageVisible = true;
+		this.resumeAll();
+	};
+
+	private pauseAll(): void {
+		this.bgm?.pause();
+		this.beeBuzz?.pause();
+	}
+
+	private resumeAll(): void {
+		if (this.musicEnabled && this.unlocked) void this.bgm?.play().catch(() => undefined);
+		this.syncBeeBuzzPlayback();
 	}
 }

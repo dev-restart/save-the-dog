@@ -46,6 +46,29 @@ describe('ObjectFactory drawing bodies', () => {
 		expect(drawing.plugin.drawingThickness).toBe(PHYSICS.drawingThickness);
 	});
 
+	it('같은 직선의 촘촘한 입력은 하나의 물리 선분으로 정규화한다', () => {
+		const points = Array.from({ length: 17 }, (_, index) => ({
+			x: 40 + (190 * index) / 16,
+			y: 350 + (40 * index) / 16
+		}));
+		const [drawing] = ObjectFactory.createDrawingSegments(points);
+		const drawingPath = drawing.plugin.drawingPath as { x: number; y: number }[] | undefined;
+
+		expect(drawingPath).toHaveLength(2);
+		expect(drawing.parts).toHaveLength(4);
+	});
+
+	it('명확히 꺾인 방어선은 입력 정규화 후에도 꼭짓점을 유지한다', () => {
+		const [drawing] = ObjectFactory.createDrawingSegments([
+			{ x: 100, y: 200 },
+			{ x: 150, y: 165 },
+			{ x: 200, y: 200 }
+		]);
+		const drawingPath = drawing.plugin.drawingPath as { x: number; y: number }[] | undefined;
+
+		expect(drawingPath).toHaveLength(3);
+	});
+
 	it('시뮬레이션이 시작되면 잉크 방어선도 중력에 따라 떨어진다', () => {
 		const engine = Matter.Engine.create();
 		engine.gravity.y = PHYSICS.gravityY;
@@ -65,6 +88,14 @@ describe('ObjectFactory drawing bodies', () => {
 });
 
 describe('ObjectFactory obstacle bodies', () => {
+	it('breaker 벌은 충돌 판정에 사용할 attackStyle을 body plugin에 보존한다', () => {
+		const breaker = ObjectFactory.createBee({ x: 195, y: 200 }, size, 'breaker');
+		const normal = ObjectFactory.createBee({ x: 195, y: 200 }, size, 'direct');
+
+		expect(breaker.plugin.attackStyle).toBe('breaker');
+		expect(normal.plugin.attackStyle).toBe('direct');
+	});
+
 	it('스테이지 구조용 wall은 보이는 벽돌 body로 생성한다', () => {
 		const body = ObjectFactory.createObstacle({ type: 'wall', x: 195, y: 520, width: 24, height: 120 }, size);
 
@@ -97,6 +128,18 @@ describe('ObjectFactory obstacle bodies', () => {
 		expect(body.isStatic).toBe(false);
 		expect(body.isSensor).toBe(false);
 		expect(body.frictionAir).toBeGreaterThan(0.1);
+	});
+
+	it('crate는 사각형을 유지하며 중력과 충돌에 반응하는 dynamic body로 생성한다', () => {
+		const body = ObjectFactory.createObstacle({ type: 'crate', x: 195, y: 300, width: 52, height: 40 }, size);
+
+		expect(body.label).toBe('crate');
+		expect(body.isStatic).toBe(false);
+		expect(body.isSensor).toBe(false);
+		expect(body.circleRadius).toBe(0);
+		expect(body.mass).toBeLessThan(Number.POSITIVE_INFINITY);
+		expect(body.bounds.max.x - body.bounds.min.x).toBeCloseTo(52);
+		expect(body.bounds.max.y - body.bounds.min.y).toBeCloseTo(40);
 	});
 
 	it('굴림 바위는 선과 지형에 반응하는 dynamic 위험물로 생성한다', () => {
